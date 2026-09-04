@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "ms-python.python",
+    "ms-python.debugpy",
+    "ms-python.vscode-pylance",
+    "esbenp.prettier-vscode",
+    "ecmel.vscode-html-css",
+    "yzhang.markdown-all-in-one"
+  ]
+}

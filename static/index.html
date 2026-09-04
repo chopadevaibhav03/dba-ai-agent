@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OS monitoring agent</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div>
+      <h1>OS monitoring agent</h1>
+      <p class="subtitle">RHEL 9 · local Ollama (llama3.2) · psutil metrics</p>
+    </div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="chat">Chat control</button>
+      <button class="tab-btn" data-tab="security">Security</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="tab-dashboard" class="tab-panel active">
+      <div class="metric-grid">
+        <div class="metric-card">
+          <span class="metric-label">CPU</span>
+          <span class="metric-value" id="m-cpu">--</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Memory</span>
+          <span class="metric-value" id="m-mem">--</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Swap</span>
+          <span class="metric-value" id="m-swap">--</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Disk /</span>
+          <span class="metric-value" id="m-disk">--</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Trends</h2>
+        </div>
+        <canvas id="trend-chart" height="90"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Analysis</h2>
+          <button id="analyze-btn" class="btn btn-primary">Analyze now</button>
+        </div>
+        <div id="analysis-body">
+          <p class="muted">Click Analyze now to get a diagnosis from the local model.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Report history</h2>
+        </div>
+        <div id="report-history"><p class="muted">No reports yet.</p></div>
+      </div>
+    </section>
+
+    <section id="tab-chat" class="tab-panel">
+      <p class="muted chat-hint">
+        Try: "is splunkd running?", "stop splunkd", "restart sshd", "list running services".
+        State-changing actions ask you to confirm before running.
+      </p>
+      <div id="chat-log" class="chat-log"></div>
+      <form id="chat-form" class="chat-input-row">
+        <input id="chat-input" type="text" placeholder="e.g. stop splunkd" autocomplete="off">
+        <button type="submit" class="btn btn-primary">Send</button>
+      </form>
+    </section>
+
+    <section id="tab-security" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <h2>OpenSCAP security scan</h2>
+          <button id="scan-btn" class="btn btn-primary">Run security scan</button>
+        </div>
+        <p class="muted">
+          Checks system configuration against the CIS profile for RHEL 9. Takes a few
+          minutes -- this page will keep polling until it's done.
+        </p>
+        <div id="scan-body"><p class="muted">No scan run yet.</p></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

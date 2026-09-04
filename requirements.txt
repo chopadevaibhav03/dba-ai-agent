@@ -1,0 +1,6 @@
+psutil>=5.9
+requests>=2.31
+streamlit>=1.35
+pandas>=2.0
+flask>=3.0
+gunicorn>=21.2

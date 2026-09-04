@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment -- NEVER commit or copy this folder between machines.
+# It hardcodes absolute paths; always recreate fresh with:
+#   python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+venv/
+.venv/
+
+# Runtime data -- generated at runtime, not part of the project source
+metrics.db
+reports/
+scans/
+
+# Editor/OS cruft
+.DS_Store
+*.swp
+
+# Secrets -- if/when Oracle DB credentials or other secrets are added,
+# put them in a .env file and keep it out of version control
+.env
+.env.local

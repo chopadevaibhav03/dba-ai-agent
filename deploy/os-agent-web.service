@@ -1,0 +1,22 @@
+# systemd unit for the OS monitoring agent web API (Gunicorn + Flask).
+#
+# Install:
+#   sudo cp os-agent-web.service /etc/systemd/system/os-agent-web.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now os-agent-web
+#   sudo systemctl status os-agent-web
+
+[Unit]
+Description=OS monitoring agent - web API (Gunicorn/Flask)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/test/opt/os-agent
+ExecStart=/home/test/opt/os-agent/venv/bin/gunicorn -w 2 -b 127.0.0.1:8800 --timeout 180 api:app
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

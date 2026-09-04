@@ -1,0 +1,55 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flask API (dev server)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "flask",
+      "env": {
+        "FLASK_APP": "api.py",
+        "FLASK_DEBUG": "1"
+      },
+      "args": ["run", "--host=127.0.0.1", "--port=8800"],
+      "jinja": true,
+      "justMyCode": true
+    },
+    {
+      "name": "Collector (single sample)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/collector.py",
+      "args": ["--once"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Collector (continuous)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/collector.py",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Analyzer (one-off run)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/analyzer.py",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Chat agent (CLI test)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/chat_agent.py",
+      "args": ["list running services"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "OSCAP tool (start a scan)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/oscap_tool.py",
+      "console": "integratedTerminal"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+# systemd unit for the OS monitoring agent metrics collector.
+#
+# Install:
+#   sudo cp os-agent-collector.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now os-agent-collector
+#   sudo systemctl status os-agent-collector
+
+[Unit]
+Description=OS monitoring agent - metrics collector
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/test/opt/os-agent
+ExecStart=/home/test/opt/os-agent/venv/bin/python3 /home/test/opt/os-agent/collector.py
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
