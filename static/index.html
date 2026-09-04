@@ -4,104 +4,944 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OS monitoring agent</title>
+
+  <title>DBA AI Agent</title>
+
   <link rel="stylesheet" href="/static/style.css">
 </head>
 
 <body>
+
   <div class="app">
+
+    <!-- ========================================================= -->
+    <!-- TOP BAR -->
+    <!-- ========================================================= -->
+
     <header class="topbar">
-      <div>
-        <h1>OS monitoring agent</h1>
-        <p class="subtitle">RHEL 9 · local Ollama (llama3.2) · psutil metrics</p>
+
+      <div class="brand">
+
+        <div class="brand-title">
+          DBA AI Agent
+        </div>
+
+        <div class="brand-subtitle">
+          Linux Operations · Oracle DBA · Security
+        </div>
+
       </div>
-      <nav class="tabs">
-        <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
-        <button class="tab-btn" data-tab="chat">Chat control</button>
-        <button class="tab-btn" data-tab="security">Security</button>
-      </nav>
+
+      <div class="header-status">
+
+        <span id="global-health-dot" class="health-dot"></span>
+
+        <span id="global-health">
+          Checking system...
+        </span>
+
+      </div>
+
     </header>
 
+
+    <!-- ========================================================= -->
+    <!-- NAVIGATION -->
+    <!-- ========================================================= -->
+
+    <nav class="main-nav">
+
+      <button class="tab-btn active" data-tab="dashboard">
+        Dashboard
+      </button>
+
+      <button class="tab-btn" data-tab="processes">
+        Processes
+      </button>
+
+      <button class="tab-btn" data-tab="network">
+        Network
+      </button>
+
+      <button class="tab-btn" data-tab="services">
+        Services
+      </button>
+
+      <button class="tab-btn" data-tab="security">
+        Security
+      </button>
+
+      <button class="tab-btn" data-tab="events">
+        Events
+      </button>
+
+      <button class="tab-btn" data-tab="chat">
+        AI Assistant
+      </button>
+
+    </nav>
+
+
     <main>
+
+
+      <!-- ======================================================= -->
+      <!-- DASHBOARD -->
+      <!-- ======================================================= -->
+
       <section id="tab-dashboard" class="tab-panel active">
+
+        <!-- SYSTEM OVERVIEW -->
+
+        <div class="card system-card">
+
+          <div class="card-header">
+
+            <div>
+              <h2>Linux Server</h2>
+              <p class="muted">
+                Live operating system information
+              </p>
+            </div>
+
+            <span id="linux-health-badge" class="health-badge">
+              Checking
+            </span>
+
+          </div>
+
+
+          <div class="system-grid">
+
+            <div class="system-item">
+              <span>Hostname</span>
+              <strong id="linux-hostname">--</strong>
+            </div>
+
+            <div class="system-item">
+              <span>Operating System</span>
+              <strong id="linux-os">--</strong>
+            </div>
+
+            <div class="system-item">
+              <span>Kernel</span>
+              <strong id="linux-kernel">--</strong>
+            </div>
+
+            <div class="system-item">
+              <span>Architecture</span>
+              <strong id="linux-arch">--</strong>
+            </div>
+
+            <div class="system-item">
+              <span>CPU Cores</span>
+              <strong id="linux-cpu-cores">--</strong>
+            </div>
+
+            <div class="system-item">
+              <span>Uptime</span>
+              <strong id="linux-uptime">--</strong>
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- RESOURCE CARDS -->
+
+        <div class="section-title">
+          System Resources
+        </div>
+
         <div class="metric-grid">
-          <div class="metric-card">
-            <span class="metric-label">CPU</span>
-            <span class="metric-value" id="m-cpu">--</span>
+
+          <div class="metric-card resource-card">
+
+            <div class="resource-header">
+              <span class="metric-label">CPU</span>
+              <span class="resource-icon">CPU</span>
+            </div>
+
+            <span class="metric-value" id="m-cpu">
+              --
+            </span>
+
+            <div class="progress">
+              <div id="cpu-progress" class="progress-bar"></div>
+            </div>
+
+            <span class="metric-detail" id="cpu-detail">
+              --
+            </span>
+
           </div>
-          <div class="metric-card">
-            <span class="metric-label">Memory</span>
-            <span class="metric-value" id="m-mem">--</span>
+
+
+          <div class="metric-card resource-card">
+
+            <div class="resource-header">
+              <span class="metric-label">Memory</span>
+              <span class="resource-icon">RAM</span>
+            </div>
+
+            <span class="metric-value" id="m-mem">
+              --
+            </span>
+
+            <div class="progress">
+              <div id="memory-progress" class="progress-bar"></div>
+            </div>
+
+            <span class="metric-detail" id="memory-detail">
+              --
+            </span>
+
           </div>
-          <div class="metric-card">
-            <span class="metric-label">Swap</span>
-            <span class="metric-value" id="m-swap">--</span>
+
+
+          <div class="metric-card resource-card">
+
+            <div class="resource-header">
+              <span class="metric-label">Swap</span>
+              <span class="resource-icon">SWP</span>
+            </div>
+
+            <span class="metric-value" id="m-swap">
+              --
+            </span>
+
+            <div class="progress">
+              <div id="swap-progress" class="progress-bar"></div>
+            </div>
+
+            <span class="metric-detail" id="swap-detail">
+              --
+            </span>
+
           </div>
-          <div class="metric-card">
-            <span class="metric-label">Disk /</span>
-            <span class="metric-value" id="m-disk">--</span>
+
+
+          <div class="metric-card resource-card">
+
+            <div class="resource-header">
+              <span class="metric-label">Disk /</span>
+              <span class="resource-icon">DSK</span>
+            </div>
+
+            <span class="metric-value" id="m-disk">
+              --
+            </span>
+
+            <div class="progress">
+              <div id="disk-progress" class="progress-bar"></div>
+            </div>
+
+            <span class="metric-detail" id="disk-detail">
+              --
+            </span>
+
           </div>
+
+
+          <div class="metric-card resource-card">
+
+            <div class="resource-header">
+              <span class="metric-label">Load</span>
+              <span class="resource-icon">LD</span>
+            </div>
+
+            <span class="metric-value" id="m-load">
+              --
+            </span>
+
+            <span class="metric-detail" id="load-detail">
+              1m / 5m / 15m
+            </span>
+
+          </div>
+
+
+          <div class="metric-card resource-card">
+
+            <div class="resource-header">
+              <span class="metric-label">Inodes</span>
+              <span class="resource-icon">INO</span>
+            </div>
+
+            <span class="metric-value" id="m-inodes">
+              --
+            </span>
+
+            <span class="metric-detail">
+              Filesystem inode usage
+            </span>
+
+          </div>
+
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <h2>Trends</h2>
+
+        <!-- HEALTH SUMMARY -->
+
+        <div class="dashboard-grid">
+
+          <div class="card">
+
+            <div class="card-header">
+              <div>
+                <h2>Health Summary</h2>
+                <p class="muted">
+                  Deterministic Linux health checks
+                </p>
+              </div>
+            </div>
+
+            <div id="health-summary">
+
+              <div class="empty-state">
+                Loading health information...
+              </div>
+
+            </div>
+
           </div>
+
+
+          <div class="card">
+
+            <div class="card-header">
+
+              <div>
+                <h2>Security Posture</h2>
+              </div>
+
+            </div>
+
+            <div id="security-summary">
+
+              <div class="security-row">
+
+                <span>SELinux</span>
+
+                <strong id="summary-selinux">
+                  --
+                </strong>
+
+              </div>
+
+              <div class="security-row">
+
+                <span>Firewall</span>
+
+                <strong id="summary-firewall">
+                  --
+                </strong>
+
+              </div>
+
+              <div class="security-row">
+
+                <span>Failed Services</span>
+
+                <strong id="summary-services">
+                  --
+                </strong>
+
+              </div>
+
+              <div class="security-row">
+
+                <span>Failed Logins</span>
+
+                <strong id="summary-logins">
+                  --
+                </strong>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- TRENDS -->
+
+        <div class="card">
+
+          <div class="card-header">
+
+            <div>
+              <h2>Resource Trends</h2>
+
+              <p class="muted">
+                Historical collector data
+              </p>
+            </div>
+
+            <span class="live-label">
+              LIVE
+            </span>
+
+          </div>
+
           <canvas id="trend-chart" height="90"></canvas>
+
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <h2>Analysis</h2>
-            <button id="analyze-btn" class="btn btn-primary">Analyze now</button>
+
+        <!-- PROCESS + SERVICES -->
+
+        <div class="dashboard-grid">
+
+          <div class="card">
+
+            <div class="card-header">
+
+              <div>
+                <h2>Top Processes</h2>
+                <p class="muted">
+                  CPU and memory consumers
+                </p>
+              </div>
+
+              <button class="btn btn-secondary" onclick="switchTab('processes')">
+                View all
+              </button>
+
+            </div>
+
+            <div id="dashboard-processes">
+
+              <div class="empty-state">
+                Loading...
+              </div>
+
+            </div>
+
           </div>
+
+
+          <div class="card">
+
+            <div class="card-header">
+
+              <div>
+                <h2>Failed Services</h2>
+              </div>
+
+              <button class="btn btn-secondary" onclick="switchTab('services')">
+                View
+              </button>
+
+            </div>
+
+            <div id="dashboard-services">
+
+              <div class="empty-state">
+                Loading...
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <!-- ANALYSIS -->
+
+        <div class="card">
+
+          <div class="card-header">
+
+            <div>
+
+              <h2>AI Analysis</h2>
+
+              <p class="muted">
+                Local Ollama diagnosis
+              </p>
+
+            </div>
+
+            <button id="analyze-btn" class="btn btn-primary">
+              Analyze now
+            </button>
+
+          </div>
+
           <div id="analysis-body">
-            <p class="muted">Click Analyze now to get a diagnosis from the local model.</p>
+
+            <p class="muted">
+              Click Analyze now to get a diagnosis from
+              the local model.
+            </p>
+
           </div>
+
         </div>
+
+
+        <!-- REPORT HISTORY -->
 
         <div class="card">
+
           <div class="card-header">
-            <h2>Report history</h2>
+
+            <div>
+              <h2>Report History</h2>
+            </div>
+
           </div>
+
           <div id="report-history">
-            <p class="muted">No reports yet.</p>
+
+            <p class="muted">
+              No reports yet.
+            </p>
+
           </div>
+
         </div>
+
       </section>
 
-      <section id="tab-chat" class="tab-panel">
-        <p class="muted chat-hint">
-          Try: "is splunkd running?", "stop splunkd", "restart sshd", "list running services".
-          State-changing actions ask you to confirm before running.
-        </p>
-        <div id="chat-log" class="chat-log"></div>
-        <form id="chat-form" class="chat-input-row">
-          <input id="chat-input" type="text" placeholder="e.g. stop splunkd" autocomplete="off">
-          <button type="submit" class="btn btn-primary">Send</button>
-        </form>
+
+      <!-- ======================================================= -->
+      <!-- PROCESSES -->
+      <!-- ======================================================= -->
+
+      <section id="tab-processes" class="tab-panel">
+
+        <div class="page-heading">
+
+          <div>
+
+            <h2>Processes</h2>
+
+            <p class="muted">
+              Linux process activity and resource consumption
+            </p>
+
+          </div>
+
+          <button class="btn btn-primary" onclick="loadLinuxHealth()">
+            Refresh
+          </button>
+
+        </div>
+
+
+        <div class="metric-grid">
+
+          <div class="metric-card">
+            <span class="metric-label">
+              Total Processes
+            </span>
+
+            <span class="metric-value" id="process-total">
+              --
+            </span>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-label">
+              Running
+            </span>
+
+            <span class="metric-value" id="process-running">
+              --
+            </span>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-label">
+              Sleeping
+            </span>
+
+            <span class="metric-value" id="process-sleeping">
+              --
+            </span>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-label">
+              Zombies
+            </span>
+
+            <span class="metric-value" id="process-zombies">
+              --
+            </span>
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="card-header">
+
+            <h2>Top Processes</h2>
+
+          </div>
+
+          <div id="process-table">
+
+            <div class="empty-state">
+              Loading processes...
+            </div>
+
+          </div>
+
+        </div>
+
       </section>
+
+
+      <!-- ======================================================= -->
+      <!-- NETWORK -->
+      <!-- ======================================================= -->
+
+      <section id="tab-network" class="tab-panel">
+
+        <div class="page-heading">
+
+          <div>
+
+            <h2>Network</h2>
+
+            <p class="muted">
+              Interfaces, traffic and listening ports
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="card-header">
+
+            <h2>Network Interfaces</h2>
+
+          </div>
+
+          <div id="network-interfaces">
+
+            <div class="empty-state">
+              Loading network interfaces...
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="dashboard-grid">
+
+          <div class="card">
+
+            <div class="card-header">
+
+              <h2>Network Statistics</h2>
+
+            </div>
+
+            <div id="network-stats">
+
+              <div class="empty-state">
+                Loading...
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <div class="card">
+
+            <div class="card-header">
+
+              <h2>Listening Ports</h2>
+
+            </div>
+
+            <div id="listening-ports">
+
+              <div class="empty-state">
+                Loading...
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ======================================================= -->
+      <!-- SERVICES -->
+      <!-- ======================================================= -->
+
+      <section id="tab-services" class="tab-panel">
+
+        <div class="page-heading">
+
+          <div>
+
+            <h2>Services</h2>
+
+            <p class="muted">
+              systemd service health
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="card-header">
+
+            <h2>Failed Services</h2>
+
+            <span id="service-count" class="health-badge">
+              --
+            </span>
+
+          </div>
+
+          <div id="services-table">
+
+            <div class="empty-state">
+              Loading services...
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ======================================================= -->
+      <!-- SECURITY -->
+      <!-- ======================================================= -->
 
       <section id="tab-security" class="tab-panel">
-        <div class="card">
-          <div class="card-header">
-            <h2>OpenSCAP security scan</h2>
-            <button id="scan-btn" class="btn btn-primary">Run security scan</button>
+
+        <div class="dashboard-grid">
+
+          <div class="card">
+
+            <div class="card-header">
+              <h2>Linux Security Posture</h2>
+            </div>
+
+            <div id="linux-security-detail">
+
+              <div class="security-row">
+                <span>SELinux</span>
+                <strong id="detail-selinux">--</strong>
+              </div>
+
+              <div class="security-row">
+                <span>Firewall</span>
+                <strong id="detail-firewall">--</strong>
+              </div>
+
+              <div class="security-row">
+                <span>Failed Logins</span>
+                <strong id="detail-failed-logins">--</strong>
+              </div>
+
+              <div class="security-row">
+                <span>Logged-in Users</span>
+                <strong id="detail-users">--</strong>
+              </div>
+
+            </div>
+
           </div>
-          <p class="muted">
-            Checks system configuration against the CIS profile for RHEL 9. Takes a few
-            minutes -- this page will keep polling until it's done.
-          </p>
-          <div id="scan-body">
-            <p class="muted">No scan run yet.</p>
+
+
+          <div class="card">
+
+            <div class="card-header">
+
+              <h2>OpenSCAP</h2>
+
+              <button id="scan-btn" class="btn btn-primary">
+                Run security scan
+              </button>
+
+            </div>
+
+            <p class="muted">
+              Run the configured OpenSCAP security profile
+              and review failed controls.
+            </p>
+
+            <div id="scan-body">
+
+              <p class="muted">
+                No scan run yet.
+              </p>
+
+            </div>
+
           </div>
+
         </div>
+
       </section>
+
+
+      <!-- ======================================================= -->
+      <!-- EVENTS -->
+      <!-- ======================================================= -->
+
+      <section id="tab-events" class="tab-panel">
+
+        <div class="page-heading">
+
+          <div>
+
+            <h2>System Events</h2>
+
+            <p class="muted">
+              Recent Linux journal errors and authentication events
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="card-header">
+
+            <h2>Journal Errors</h2>
+
+          </div>
+
+          <div id="journal-events">
+
+            <div class="empty-state">
+              Loading events...
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="card-header">
+
+            <h2>Failed Login Attempts</h2>
+
+          </div>
+
+          <div id="login-events">
+
+            <div class="empty-state">
+              Loading authentication events...
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- ======================================================= -->
+      <!-- AI ASSISTANT -->
+      <!-- ======================================================= -->
+
+      <section id="tab-chat" class="tab-panel">
+
+        <div class="page-heading">
+
+          <div>
+
+            <h2>AI Assistant</h2>
+
+            <p class="muted">
+              Linux and DBA operations assistant
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <div class="ai-info">
+
+          <div class="ai-status-dot"></div>
+
+          <div>
+
+            <strong>
+              Local AI
+            </strong>
+
+            <p>
+              Ollama · llama3.2
+            </p>
+
+          </div>
+
+        </div>
+
+
+        <p class="muted chat-hint">
+
+          Ask about Linux health, processes, services,
+          network status or Oracle administration.
+
+        </p>
+
+
+        <div id="chat-log" class="chat-log">
+
+        </div>
+
+
+        <form id="chat-form" class="chat-input-row">
+
+          <input id="chat-input" type="text" placeholder="Ask the DBA AI Agent..." autocomplete="off">
+
+          <button type="submit" class="btn btn-primary">
+            Send
+          </button>
+
+        </form>
+
+      </section>
+
+
     </main>
+
   </div>
 
+
+  <!-- Chart.js -->
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
   <script src="/static/app.js"></script>
+
 </body>
 
 </html>

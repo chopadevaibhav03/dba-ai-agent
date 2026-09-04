@@ -1,3 +1,4 @@
+from services.linux_health_service import get_linux_health
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 from fastapi.responses import FileResponse
@@ -46,6 +47,10 @@ def tools():
         "ok": True,
         "tools": list_tools(),
     }
+
+@app.get("/api/linux/health")
+def linux_health():
+    return get_linux_health()
 
 
 @app.get("/api/tools/{tool_name:path}")

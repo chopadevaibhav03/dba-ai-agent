@@ -404,3 +404,1537 @@ if (scanBtn) {
     }
   });
 }
+
+// ============================================================
+// Linux Monitoring UI
+// ============================================================
+
+async function loadLinuxHealth() {
+
+  try {
+
+    const res = await fetch(`${API}/linux/health`);
+
+    const result = await res.json();
+
+    if (!result.ok) {
+      console.error("Linux health API failed:", result);
+      return;
+    }
+
+    const health = result.health || {};
+    const data = result.data || {};
+
+    // --------------------------------------------------------
+    // Global health
+    // --------------------------------------------------------
+
+    const globalHealth = document.getElementById("global-health");
+    const healthDot = document.getElementById("global-health-dot");
+    const healthBadge = document.getElementById("linux-health-badge");
+
+    const status =
+      (health.status || "unknown").toLowerCase();
+
+    const statusText =
+      status.toUpperCase();
+
+    if (globalHealth) {
+      globalHealth.textContent = statusText;
+    }
+
+    if (healthBadge) {
+      healthBadge.textContent = statusText;
+      healthBadge.className =
+        `health-badge health-${status}`;
+    }
+
+    if (healthDot) {
+      healthDot.className =
+        `health-dot health-${status}`;
+    }
+
+
+    // --------------------------------------------------------
+    // System information
+    // --------------------------------------------------------
+
+    const system = data.system || {};
+
+    setText("linux-hostname", system.hostname);
+    setText(
+      "linux-os",
+      system.os_name ||
+      system.distribution ||
+      system.platform ||
+      "--"
+    );
+
+    setText(
+      "linux-kernel",
+      system.kernel ||
+      system.platform_release ||
+      "--"
+    );
+
+    setText(
+      "linux-arch",
+      system.architecture ||
+      "--"
+    );
+
+    setText(
+      "linux-cpu-cores",
+      system.cpu_count ||
+      system.cpu_cores ||
+      "--"
+    );
+
+    setText(
+      "linux-uptime",
+      formatUptime(
+        system.uptime_seconds ||
+        system.uptime
+      )
+    );
+
+
+    // --------------------------------------------------------
+    // CPU
+    // --------------------------------------------------------
+
+    const cpu = data.cpu || {};
+
+    const cpuPercent =
+      numberValue(
+        cpu.usage_percent,
+        cpu.cpu_percent
+      );
+
+    setPercent("m-cpu", cpuPercent);
+    setProgress("cpu-progress", cpuPercent);
+
+    setText(
+      "cpu-detail",
+      cpuPercent !== null
+        ? `${cpuPercent.toFixed(1)}% utilization`
+        : "--"
+    );
+
+
+    // --------------------------------------------------------
+    // Memory
+    // --------------------------------------------------------
+
+    const memory = data.memory || {};
+
+    const memoryPercent =
+      numberValue(
+        memory.usage_percent,
+        memory.percent
+      );
+
+    setPercent("m-mem", memoryPercent);
+    setProgress("memory-progress", memoryPercent);
+
+    setText(
+      "memory-detail",
+      formatMemoryDetail(memory)
+    );
+
+
+    // --------------------------------------------------------
+    // Swap
+    // --------------------------------------------------------
+
+    const swap = data.swap || {};
+
+    const swapPercent =
+      numberValue(
+        swap.usage_percent,
+        swap.percent
+      );
+
+    setPercent("m-swap", swapPercent);
+    setProgress("swap-progress", swapPercent);
+
+    setText(
+      "swap-detail",
+      formatMemoryDetail(swap)
+    );
+
+
+    // --------------------------------------------------------
+    // Disk
+    // --------------------------------------------------------
+
+    const disk = data.disk || {};
+
+    let rootDisk = disk["/"];
+
+    if (!rootDisk) {
+
+      const entries =
+        Object.entries(disk);
+
+      if (entries.length) {
+        rootDisk = entries[0][1];
+      }
+
+    }
+
+    const diskPercent =
+      rootDisk
+        ? numberValue(
+          rootDisk.usage_percent,
+          rootDisk.percent
+        )
+        : null;
+
+    setPercent("m-disk", diskPercent);
+    setProgress("disk-progress", diskPercent);
+
+    setText(
+      "disk-detail",
+      rootDisk
+        ? formatDiskDetail(rootDisk)
+        : "--"
+    );
+
+
+    // --------------------------------------------------------
+    // Load
+    // --------------------------------------------------------
+
+    const load = data.load || {};
+
+    const load1 =
+      numberValue(
+        load.load_1,
+        load.load_avg_1
+      );
+
+    const load5 =
+      numberValue(
+        load.load_5,
+        load.load_avg_5
+      );
+
+    const load15 =
+      numberValue(
+        load.load_15,
+        load.load_avg_15
+      );
+
+    setText(
+      "m-load",
+      load1 !== null
+        ? load1.toFixed(2)
+        : "--"
+    );
+
+    setText(
+      "load-detail",
+      `${formatNumber(load1)} / ${formatNumber(load5)} / ${formatNumber(load15)}`
+    );
+
+
+    // --------------------------------------------------------
+    // Inodes
+    // --------------------------------------------------------
+
+    const inodes = data.inodes || {};
+
+    const inodePercent =
+      findHighestPercentage(inodes);
+
+    setPercent(
+      "m-inodes",
+      inodePercent
+    );
+
+
+    // --------------------------------------------------------
+    // Processes
+    // --------------------------------------------------------
+
+    renderLinuxProcesses(
+      data.top_processes,
+      data.process_summary
+    );
+
+
+    // --------------------------------------------------------
+    // Services
+    // --------------------------------------------------------
+
+    renderLinuxServices(
+      data.failed_services
+    );
+
+
+    // --------------------------------------------------------
+    // Network
+    // --------------------------------------------------------
+
+    renderLinuxNetwork(
+      data.network_interfaces,
+      data.network_stats,
+      data.listening_ports
+    );
+
+
+    // --------------------------------------------------------
+    // Security
+    // --------------------------------------------------------
+
+    renderLinuxSecurity(
+      data.selinux,
+      data.firewall,
+      data.failed_logins,
+      data.logged_in_users
+    );
+
+
+    // --------------------------------------------------------
+    // Events
+    // --------------------------------------------------------
+
+    renderLinuxEvents(
+      data.journal_errors,
+      data.failed_logins
+    );
+
+
+    // --------------------------------------------------------
+    // Health summary
+    // --------------------------------------------------------
+
+    renderHealthSummary(health);
+
+  } catch (err) {
+
+    console.error(
+      "Linux health request failed:",
+      err
+    );
+
+    const globalHealth =
+      document.getElementById("global-health");
+
+    if (globalHealth) {
+      globalHealth.textContent =
+        "API ERROR";
+    }
+
+  }
+
+}
+
+
+// ============================================================
+// Helper functions
+// ============================================================
+
+function setText(id, value) {
+
+  const element =
+    document.getElementById(id);
+
+  if (!element) {
+    return;
+  }
+
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    element.textContent = "--";
+  } else {
+    element.textContent = value;
+  }
+
+}
+
+
+function numberValue(...values) {
+
+  for (const value of values) {
+
+    if (
+      value !== undefined &&
+      value !== null &&
+      !Number.isNaN(Number(value))
+    ) {
+      return Number(value);
+    }
+
+  }
+
+  return null;
+
+}
+
+
+function setPercent(id, value) {
+
+  if (value === null) {
+
+    setText(id, "--");
+
+    return;
+  }
+
+  setText(
+    id,
+    `${value.toFixed(1)}%`
+  );
+
+}
+
+
+function setProgress(id, value) {
+
+  const element =
+    document.getElementById(id);
+
+  if (!element) {
+    return;
+  }
+
+  if (value === null) {
+
+    element.style.width = "0%";
+
+    return;
+  }
+
+  const safeValue =
+    Math.max(
+      0,
+      Math.min(100, value)
+    );
+
+  element.style.width =
+    `${safeValue}%`;
+
+}
+
+
+function formatNumber(value) {
+
+  if (value === null) {
+    return "--";
+  }
+
+  return Number(value).toFixed(2);
+
+}
+
+
+function formatUptime(value) {
+
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return "--";
+  }
+
+  if (
+    typeof value === "string" &&
+    value.includes(" ")
+  ) {
+    return value;
+  }
+
+  const seconds =
+    Number(value);
+
+  if (Number.isNaN(seconds)) {
+    return value;
+  }
+
+  const days =
+    Math.floor(seconds / 86400);
+
+  const hours =
+    Math.floor(
+      (seconds % 86400) / 3600
+    );
+
+  const minutes =
+    Math.floor(
+      (seconds % 3600) / 60
+    );
+
+  return `${days}d ${hours}h ${minutes}m`;
+
+}
+
+
+function formatMemoryDetail(data) {
+
+  if (!data) {
+    return "--";
+  }
+
+  const used =
+    data.used_gb ??
+    data.used_mb;
+
+  const total =
+    data.total_gb ??
+    data.total_mb;
+
+  if (
+    used !== undefined &&
+    total !== undefined
+  ) {
+
+    const unit =
+      data.used_gb !== undefined
+        ? "GB"
+        : "MB";
+
+    return `${used} / ${total} ${unit}`;
+
+  }
+
+  return "--";
+
+}
+
+
+function formatDiskDetail(data) {
+
+  if (!data) {
+    return "--";
+  }
+
+  const used =
+    data.used_gb ??
+    data.used;
+
+  const total =
+    data.total_gb ??
+    data.total;
+
+  if (
+    used !== undefined &&
+    total !== undefined
+  ) {
+
+    return `${used} / ${total} GB`;
+
+  }
+
+  return "--";
+
+}
+
+
+function findHighestPercentage(data) {
+
+  if (!data) {
+    return null;
+  }
+
+  let highest = null;
+
+  function inspect(value) {
+
+    if (!value) {
+      return;
+    }
+
+    if (
+      typeof value === "object"
+    ) {
+
+      for (
+        const [key, child] of Object.entries(value)
+      ) {
+
+        if (
+          typeof child === "number" &&
+          (
+            key === "percent" ||
+            key === "usage_percent" ||
+            key === "percent_used"
+          )
+        ) {
+
+          highest =
+            highest === null
+              ? child
+              : Math.max(
+                highest,
+                child
+              );
+
+        } else if (
+          typeof child === "object"
+        ) {
+
+          inspect(child);
+
+        }
+
+      }
+
+    }
+
+  }
+
+  inspect(data);
+
+  return highest;
+
+}
+
+
+// ============================================================
+// Process UI
+// ============================================================
+
+function renderLinuxProcesses(
+  processData,
+  summary
+) {
+
+  const summaryData =
+    summary || {};
+
+  setText(
+    "process-total",
+    summaryData.total_processes ??
+    summaryData.process_count ??
+    "--"
+  );
+
+  setText(
+    "process-running",
+    summaryData.running ??
+    summaryData.running_processes ??
+    "--"
+  );
+
+  setText(
+    "process-sleeping",
+    summaryData.sleeping ??
+    summaryData.sleeping_processes ??
+    "--"
+  );
+
+  setText(
+    "process-zombies",
+    summaryData.zombie ??
+    summaryData.zombies ??
+    "--"
+  );
+
+
+  const processes =
+    extractList(processData);
+
+  if (!processes.length) {
+
+    setHTML(
+      "dashboard-processes",
+      `<div class="empty-state">
+        No process information available.
+       </div>`
+    );
+
+    setHTML(
+      "process-table",
+      `<div class="empty-state">
+        No process information available.
+       </div>`
+    );
+
+    return;
+  }
+
+
+  const rows =
+    processes
+      .slice(0, 15)
+      .map(p => {
+
+        const pid =
+          p.pid ?? "--";
+
+        const name =
+          p.name ??
+          p.command ??
+          "--";
+
+        const user =
+          p.username ??
+          p.user ??
+          "--";
+
+        const cpu =
+          p.cpu_percent ??
+          p.cpu ??
+          0;
+
+        const memory =
+          p.memory_percent ??
+          p.mem_percent ??
+          0;
+
+        const status =
+          p.status ??
+          "--";
+
+        return `
+          <tr>
+            <td>${escapeHTML(pid)}</td>
+            <td><strong>${escapeHTML(name)}</strong></td>
+            <td>${escapeHTML(user)}</td>
+            <td>${formatNumber(Number(cpu))}%</td>
+            <td>${formatNumber(Number(memory))}%</td>
+            <td>${escapeHTML(status)}</td>
+          </tr>
+        `;
+
+      })
+      .join("");
+
+
+  setHTML(
+    "process-table",
+    `
+      <div class="table-scroll">
+
+        <table>
+
+          <thead>
+
+            <tr>
+              <th>PID</th>
+              <th>Process</th>
+              <th>User</th>
+              <th>CPU</th>
+              <th>Memory</th>
+              <th>Status</th>
+            </tr>
+
+          </thead>
+
+          <tbody>
+            ${rows}
+          </tbody>
+
+        </table>
+
+      </div>
+    `
+  );
+
+
+  setHTML(
+    "dashboard-processes",
+    `
+      <div class="mini-table">
+
+        ${processes
+      .slice(0, 5)
+      .map(p => `
+            <div class="mini-row">
+
+              <strong>
+                ${escapeHTML(
+        p.name ??
+        p.command ??
+        "--"
+      )}
+              </strong>
+
+              <span>
+                ${formatNumber(
+        Number(
+          p.cpu_percent ??
+          p.cpu ??
+          0
+        )
+      )}%
+              </span>
+
+            </div>
+          `)
+      .join("")}
+
+      </div>
+    `
+  );
+
+}
+
+
+// ============================================================
+// Services
+// ============================================================
+
+function renderLinuxServices(data) {
+
+  let services =
+    extractList(data);
+
+  setText(
+    "service-count",
+    `${services.length} failed`
+  );
+
+  if (!services.length) {
+
+    const html =
+      `<div class="success-state">
+        ✓ No failed systemd services
+       </div>`;
+
+    setHTML(
+      "services-table",
+      html
+    );
+
+    setHTML(
+      "dashboard-services",
+      html
+    );
+
+    return;
+  }
+
+
+  const rows =
+    services
+      .slice(0, 30)
+      .map(service => {
+
+        const name =
+          typeof service === "string"
+            ? service
+            : service.name ??
+            service.service ??
+            "--";
+
+        return `
+          <div class="service-row">
+
+            <strong>
+              ${escapeHTML(name)}
+            </strong>
+
+            <span class="severity-badge sev-critical">
+              FAILED
+            </span>
+
+          </div>
+        `;
+
+      })
+      .join("");
+
+
+  setHTML(
+    "services-table",
+    rows
+  );
+
+  setHTML(
+    "dashboard-services",
+    services
+      .slice(0, 5)
+      .map(service => {
+
+        const name =
+          typeof service === "string"
+            ? service
+            : service.name ??
+            service.service ??
+            "--";
+
+        return `
+          <div class="service-row">
+
+            <strong>
+              ${escapeHTML(name)}
+            </strong>
+
+            <span class="severity-badge sev-critical">
+              FAILED
+            </span>
+
+          </div>
+        `;
+
+      })
+      .join("")
+  );
+
+}
+
+
+// ============================================================
+// Network
+// ============================================================
+
+function renderLinuxNetwork(
+  interfaces,
+  stats,
+  ports
+) {
+
+  const interfaceList =
+    extractList(interfaces);
+
+  if (!interfaceList.length) {
+
+    setHTML(
+      "network-interfaces",
+      `<div class="empty-state">
+        No network interface data available.
+       </div>`
+    );
+
+  } else {
+
+    setHTML(
+      "network-interfaces",
+      `
+        <div class="table-scroll">
+
+          <table>
+
+            <thead>
+
+              <tr>
+                <th>Interface</th>
+                <th>State</th>
+                <th>Address</th>
+                <th>RX</th>
+                <th>TX</th>
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              ${interfaceList
+        .map(item => {
+
+          const name =
+            item.name ??
+            item.interface ??
+            item.iface ??
+            "--";
+
+          const state =
+            item.state ??
+            item.status ??
+            "--";
+
+          const address =
+            item.address ??
+            item.ip ??
+            item.ip_address ??
+            "--";
+
+          return `
+                    <tr>
+                      <td>
+                        <strong>
+                          ${escapeHTML(name)}
+                        </strong>
+                      </td>
+
+                      <td>
+                        ${escapeHTML(state)}
+                      </td>
+
+                      <td>
+                        ${escapeHTML(address)}
+                      </td>
+
+                      <td>
+                        ${escapeHTML(
+            item.rx_bytes ??
+            item.rx ??
+            "--"
+          )}
+                      </td>
+
+                      <td>
+                        ${escapeHTML(
+            item.tx_bytes ??
+            item.tx ??
+            "--"
+          )}
+                      </td>
+                    </tr>
+                  `;
+
+        })
+        .join("")}
+
+            </tbody>
+
+          </table>
+
+        </div>
+      `
+    );
+
+  }
+
+
+  const statsList =
+    extractList(stats);
+
+  if (!statsList.length) {
+
+    setHTML(
+      "network-stats",
+      `<div class="empty-state">
+        No network statistics available.
+       </div>`
+    );
+
+  } else {
+
+    setHTML(
+      "network-stats",
+      statsList
+        .slice(0, 10)
+        .map(item => {
+
+          const name =
+            item.name ??
+            item.interface ??
+            item.iface ??
+            "--";
+
+          return `
+            <div class="network-stat-row">
+
+              <strong>
+                ${escapeHTML(name)}
+              </strong>
+
+              <span>
+                RX:
+                ${escapeHTML(
+            item.rx_bytes ??
+            "--"
+          )}
+              </span>
+
+              <span>
+                TX:
+                ${escapeHTML(
+            item.tx_bytes ??
+            "--"
+          )}
+              </span>
+
+            </div>
+          `;
+
+        })
+        .join("")
+    );
+
+  }
+
+
+  const portList =
+    extractList(ports);
+
+  if (!portList.length) {
+
+    setHTML(
+      "listening-ports",
+      `<div class="empty-state">
+        No listening ports found.
+       </div>`
+    );
+
+  } else {
+
+    setHTML(
+      "listening-ports",
+      `
+        <div class="table-scroll">
+
+          <table>
+
+            <thead>
+              <tr>
+                <th>Protocol</th>
+                <th>Address</th>
+                <th>Port</th>
+                <th>Process</th>
+              </tr>
+            </thead>
+
+            <tbody>
+
+              ${portList
+        .slice(0, 50)
+        .map(item => {
+
+          return `
+                    <tr>
+
+                      <td>
+                        ${escapeHTML(
+            item.protocol ??
+            item.proto ??
+            "--"
+          )}
+                      </td>
+
+                      <td>
+                        ${escapeHTML(
+            item.address ??
+            item.local_address ??
+            "--"
+          )}
+                      </td>
+
+                      <td>
+                        <strong>
+                          ${escapeHTML(
+            item.port ??
+            "--"
+          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        ${escapeHTML(
+            item.process ??
+            item.process_name ??
+            "--"
+          )}
+                      </td>
+
+                    </tr>
+                  `;
+
+        })
+        .join("")}
+
+            </tbody>
+
+          </table>
+
+        </div>
+      `
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// Security
+// ============================================================
+
+function renderLinuxSecurity(
+  selinux,
+  firewall,
+  failedLogins,
+  users
+) {
+
+  const selinuxStatus =
+    selinux?.status ??
+    selinux?.mode ??
+    (selinux?.enforcing
+      ? "Enforcing"
+      : "Permissive");
+
+  const firewallStatus =
+    firewall?.active === true
+      ? "Active"
+      : firewall?.active === false
+        ? "Inactive"
+        : firewall?.status ??
+        "Unknown";
+
+  const loginList =
+    extractList(failedLogins);
+
+  const userList =
+    extractList(users);
+
+
+  setText(
+    "summary-selinux",
+    selinuxStatus
+  );
+
+  setText(
+    "summary-firewall",
+    firewallStatus
+  );
+
+  setText(
+    "summary-services",
+    document.getElementById(
+      "service-count"
+    )?.textContent || "--"
+  );
+
+  setText(
+    "summary-logins",
+    loginList.length
+  );
+
+
+  setText(
+    "detail-selinux",
+    selinuxStatus
+  );
+
+  setText(
+    "detail-firewall",
+    firewallStatus
+  );
+
+  setText(
+    "detail-failed-logins",
+    loginList.length
+  );
+
+  setText(
+    "detail-users",
+    userList.length
+  );
+
+}
+
+
+// ============================================================
+// Events
+// ============================================================
+
+function renderLinuxEvents(
+  journal,
+  failedLogins
+) {
+
+  const journalList =
+    extractList(journal);
+
+  if (!journalList.length) {
+
+    setHTML(
+      "journal-events",
+      `<div class="success-state">
+        ✓ No recent journal errors reported
+       </div>`
+    );
+
+  } else {
+
+    setHTML(
+      "journal-events",
+      journalList
+        .slice(0, 30)
+        .map(item => {
+
+          const text =
+            typeof item === "string"
+              ? item
+              : item.message ??
+              item.msg ??
+              JSON.stringify(item);
+
+          return `
+            <div class="event-row">
+
+              <span class="event-type">
+                ERROR
+              </span>
+
+              <span>
+                ${escapeHTML(text)}
+              </span>
+
+            </div>
+          `;
+
+        })
+        .join("")
+    );
+
+  }
+
+
+  const loginList =
+    extractList(failedLogins);
+
+  if (!loginList.length) {
+
+    setHTML(
+      "login-events",
+      `<div class="success-state">
+        ✓ No failed login events reported
+       </div>`
+    );
+
+  } else {
+
+    setHTML(
+      "login-events",
+      loginList
+        .slice(0, 30)
+        .map(item => {
+
+          const text =
+            typeof item === "string"
+              ? item
+              : item.message ??
+              item.user ??
+              JSON.stringify(item);
+
+          return `
+            <div class="event-row">
+
+              <span class="event-type warning">
+                AUTH
+              </span>
+
+              <span>
+                ${escapeHTML(text)}
+              </span>
+
+            </div>
+          `;
+
+        })
+        .join("")
+    );
+
+  }
+
+}
+
+
+// ============================================================
+// Health Summary
+// ============================================================
+
+function renderHealthSummary(health) {
+
+  const critical =
+    health.critical || [];
+
+  const warnings =
+    health.warnings || [];
+
+  let html = "";
+
+  if (!critical.length && !warnings.length) {
+
+    html = `
+      <div class="success-state">
+        ✓ Linux server is healthy
+      </div>
+    `;
+
+  } else {
+
+    critical.forEach(item => {
+
+      html += `
+        <div class="health-event critical">
+
+          <span class="severity-badge sev-critical">
+            CRITICAL
+          </span>
+
+          <span>
+            ${escapeHTML(
+        item.message || ""
+      )}
+          </span>
+
+        </div>
+      `;
+
+    });
+
+
+    warnings.forEach(item => {
+
+      html += `
+        <div class="health-event warning">
+
+          <span class="severity-badge sev-warning">
+            WARNING
+          </span>
+
+          <span>
+            ${escapeHTML(
+        item.message || ""
+      )}
+          </span>
+
+        </div>
+      `;
+
+    });
+
+  }
+
+  setHTML(
+    "health-summary",
+    html
+  );
+
+}
+
+
+// ============================================================
+// Utility
+// ============================================================
+
+function extractList(data) {
+
+  if (!data) {
+    return [];
+  }
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (Array.isArray(data.items)) {
+    return data.items;
+  }
+
+  if (Array.isArray(data.processes)) {
+    return data.processes;
+  }
+
+  if (Array.isArray(data.services)) {
+    return data.services;
+  }
+
+  if (Array.isArray(data.ports)) {
+    return data.ports;
+  }
+
+  if (Array.isArray(data.interfaces)) {
+    return data.interfaces;
+  }
+
+  if (Array.isArray(data.events)) {
+    return data.events;
+  }
+
+  return [];
+
+}
+
+
+function setHTML(id, html) {
+
+  const element =
+    document.getElementById(id);
+
+  if (element) {
+    element.innerHTML = html;
+  }
+
+}
+
+
+function escapeHTML(value) {
+
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+
+}
+
+
+// ============================================================
+// Navigation helper
+// ============================================================
+
+function switchTab(tabName) {
+
+  document
+    .querySelectorAll(".tab-btn")
+    .forEach(btn => {
+
+      btn.classList.toggle(
+        "active",
+        btn.dataset.tab === tabName
+      );
+
+    });
+
+
+  document
+    .querySelectorAll(".tab-panel")
+    .forEach(panel => {
+
+      panel.classList.toggle(
+        "active",
+        panel.id === `tab-${tabName}`
+      );
+
+    });
+
+}
+
+
+// ============================================================
+// Replace existing tab handling with shared helper
+// ============================================================
+
+document
+  .querySelectorAll(".tab-btn")
+  .forEach(btn => {
+
+    btn.addEventListener(
+      "click",
+      () => {
+
+        switchTab(
+          btn.dataset.tab
+        );
+
+      }
+    );
+
+  });
+
+
+// ============================================================
+// Initial Linux health load
+// ============================================================
+
+loadLinuxHealth();
+
+
+// Refresh live Linux health every 15 seconds
+
+setInterval(
+  loadLinuxHealth,
+  15000
+);
