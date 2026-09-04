@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from services.metrics_service import (
     get_latest_metrics,
@@ -11,6 +13,12 @@ app = FastAPI(
     title="DBA AI Agent",
     version="0.2.0-stage1",
 )
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+def index():
+    return FileResponse("static/index.html")
 
 
 @app.get("/api/health")
