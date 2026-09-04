@@ -1,7 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
 
-from services.metrics_service import get_latest_metrics
+from services.metrics_service import (
+    get_latest_metrics,
+    get_metrics_history,
+)
 
 
 app = FastAPI(
@@ -39,3 +42,10 @@ def metrics_latest():
         )
 
     return result
+
+
+@app.get("/api/metrics/history")
+def metrics_history(
+    limit: int = Query(default=200, ge=1, le=1000)
+):
+    return get_metrics_history(limit) 
