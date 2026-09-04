@@ -1,3 +1,53 @@
+# DBA AI Agent
+
+Local AI-powered Linux, Oracle DBA, Security and VAPT automation
+platform.
+
+## Current Stage
+
+**Stage 1 — AI Linux & Oracle Foundation**
+
+The project is being evolved from the original Flask-based OS
+monitoring prototype into a FastAPI-based AI operations platform.
+
+The existing Flask implementation is temporarily retained while the
+FastAPI migration is developed and tested.
+
+## Architecture
+
+See:
+
+[Stage 1 Architecture](docs/architecture/STAGE-1-FOUNDATION.md)
+
+### Stage 1 Stack
+
+- Python 3.11
+- FastAPI
+- Ollama
+- Llama 3.2:3b
+- Oracle Database 19c
+- OpenSCAP
+- SQLite
+- Apache HTTP Server
+
+### Stage 1 Domains
+
+- Linux monitoring and diagnostics
+- Oracle Database 19c monitoring and diagnostics
+- OpenSCAP integration
+- AI-assisted analysis
+- Controlled tool execution
+- Human approval
+- Audit and verification
+
+### Design Principle
+
+The LLM is responsible for reasoning, tool selection and analysis.
+
+It is not an unrestricted shell or SQL executor.
+
+All system operations are performed through controlled Python tools.
+
 # OS monitoring agent (local, Ollama-powered)
 
 Monitors CPU, RAM, swap, and disk on RHEL 9, diagnoses issues with a local
