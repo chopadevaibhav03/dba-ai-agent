@@ -1,3 +1,4 @@
+from tools.oscap import OSCAP_TOOLS
 # from tools.linux import (
 #     get_system_info,
 #     get_cpu_usage,
@@ -86,6 +87,7 @@ No arbitrary SQL.
 """
 
 from tools.linux import LINUX_TOOLS
+from tools.oracle import ORACLE_TOOLS, ORACLE_TOOL_DESCRIPTIONS
 
 
 LINUX_TOOL_DESCRIPTIONS = {
@@ -128,7 +130,9 @@ LINUX_TOOL_DESCRIPTIONS = {
 }
 
 
+# _oscap_registry_added
 TOOLS = {}
+TOOLS.update(OSCAP_TOOLS)
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +148,21 @@ for name, function in LINUX_TOOLS.items():
         "function": function,
         "read_only": True,
         "category": "linux",
+    }
+
+# ---------------------------------------------------------------------------
+# Oracle tools
+# ---------------------------------------------------------------------------
+
+for name, function in ORACLE_TOOLS.items():
+    TOOLS[name] = {
+        "description": ORACLE_TOOL_DESCRIPTIONS.get(
+            name,
+            f"Read-only Oracle diagnostic tool: {name}",
+        ),
+        "function": function,
+        "read_only": True,
+        "category": "oracle",
     }
 
 
@@ -189,3 +208,6 @@ def execute_tool(name: str, **kwargs):
     function = tool["function"]
 
     return function(**kwargs)
+
+
+    

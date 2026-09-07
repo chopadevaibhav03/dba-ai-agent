@@ -286,14 +286,58 @@ function severityColor(sev) {
 
 function renderScanResult(data) {
   const el = document.getElementById("scan-body");
-  if (!el) return;  // chat-triggered scan with no visible target
+  if (!el) return;
+
+  const percent = Math.max(0, Math.min(100, Number(data.progress_percent ?? 0)));
+  const stage = data.current_stage || (
+    data.status === "queued" ? "Queued" :
+    data.status === "running" ? "Scanning" :
+    data.status === "done" ? "Completed" : "Failed"
+  );
 
   if (data.status === "queued" || data.status === "running") {
-    el.innerHTML = `<p class="muted">Scan ${data.status}... this can take several minutes for a full profile.</p>`;
+    const elapsed = Number(data.elapsed_seconds || 0);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    const elapsedText = elapsed
+      ? `${minutes}m ${String(seconds).padStart(2, "0")}s elapsed`
+      : "Preparing scan...";
+
+    el.innerHTML = `
+      <div class="scan-progress-card">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+          <strong>OpenSCAP Security Scan</strong>
+          <strong>${percent}%</strong>
+        </div>
+
+        <div style="height:12px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:12px 0;">
+          <div style="height:100%;width:${percent}%;background:#2563eb;border-radius:999px;transition:width .5s ease;"></div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <span class="muted">${stage}</span>
+          <span class="muted">${elapsedText}</span>
+        </div>
+
+        <p class="muted" style="margin-top:10px;">
+          Full CIS scans can take approximately 30-40 minutes on this server.
+        </p>
+
+        ${data.progress_estimated ? `
+          <p class="muted" style="font-size:12px;">
+            Progress is an estimate based on elapsed scan time. The final result
+            is marked 100% only after OpenSCAP finishes and the report is processed.
+          </p>` : ""}
+      </div>`;
     return;
   }
+
   if (data.status === "error") {
-    el.innerHTML = `<p style="color:#a32d2d">Scan failed: ${data.error}</p>`;
+    el.innerHTML = `
+      <div class="scan-progress-card">
+        <strong style="color:#a32d2d">OpenSCAP scan failed</strong>
+        <p>${data.error || "Unknown scan error"}</p>
+      </div>`;
     return;
   }
 
@@ -367,39 +411,86 @@ function renderScanResult(data) {
 
 function pollScan(scanId, targetEl) {
   const interval = setInterval(async () => {
-    const res = await fetch(`${API}/security/scan/${scanId}`);
-    const data = await res.json();
-    if (!data.ok) {
-      clearInterval(interval);
-      return;
-    }
-    data._scan_id = scanId;
-    if (targetEl !== null) renderScanResult(data);
-    if (data.status === "done" || data.status === "error") {
-      clearInterval(interval);
-      if (data.status === "done" && targetEl === null) {
-        addMessage("assistant", `Security scan finished. Overall risk: ${(data.summary || {}).overall_risk || "unknown"}. Check the Security tab for details.`);
+    try {
+      const res = await fetch(`${API}/security/scan/${scanId}`, {
+        cache: "no-store",
+      });
+      const data = await res.json();
+
+      if (!data.ok) {
+        clearInterval(interval);
+        if (targetEl !== null) {
+          const el = document.getElementById(targetEl);
+          if (el) el.innerHTML = `<p style="color:#a32d2d">${data.error || "Unable to read scan status."}</p>`;
+        }
+        if (scanBtn) scanBtn.disabled = false;
+        return;
       }
+
+      data._scan_id = scanId;
+
+      if (targetEl !== null) {
+        renderScanResult(data);
+      }
+
+      if (data.status === "done" || data.status === "error") {
+        clearInterval(interval);
+        if (scanBtn) scanBtn.disabled = false;
+
+        if (data.status === "done" && targetEl === null) {
+          addMessage(
+            "assistant",
+            `Security scan finished. Overall risk: ${(data.summary || {}).overall_risk || "unknown"}. Check the Security tab for details.`
+          );
+        }
+      }
+    } catch (err) {
+      console.warn("OSCAP status polling failed:", err);
     }
   }, 5000);
+
+  fetch(`${API}/security/scan/${scanId}`, { cache: "no-store" })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok && targetEl !== null) {
+        data._scan_id = scanId;
+        renderScanResult(data);
+      }
+    })
+    .catch(() => {});
 }
 
 const scanBtn = document.getElementById("scan-btn");
 if (scanBtn) {
   scanBtn.addEventListener("click", async () => {
     scanBtn.disabled = true;
-    document.getElementById("scan-body").innerHTML = `<p class="muted">Starting scan...</p>`;
+
+    const body = document.getElementById("scan-body");
+    if (body) {
+      body.innerHTML = `<p class="muted">Starting OpenSCAP scan...</p>`;
+    }
+
     try {
       const res = await fetch(`${API}/security/scan`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
       });
+
       const data = await res.json();
+
       if (data.ok) {
         pollScan(data.scan_id, "scan-body");
       } else {
-        document.getElementById("scan-body").innerHTML = `<p style="color:#a32d2d">${data.error}</p>`;
+        if (body) {
+          body.innerHTML = `<p style="color:#a32d2d">${data.error || "Unable to start scan."}</p>`;
+        }
+        scanBtn.disabled = false;
       }
-    } finally {
+    } catch (err) {
+      if (body) {
+        body.innerHTML = `<p style="color:#a32d2d">Network error starting scan: ${err.message}</p>`;
+      }
       scanBtn.disabled = false;
     }
   });
