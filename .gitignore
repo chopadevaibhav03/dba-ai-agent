@@ -22,3 +22,15 @@ scans/
 # put them in a .env file and keep it out of version control
 .env
 .env.local
+.oracle.env
+
+
+--------------------------------
+run the complete application with uvicorn
+-------------------------------------------
+
+./venv/bin/uvicorn core.fastapi_app:app \
+    --host 127.0.0.1 \
+    --port 8801
+# Local migration backups
+migration-backup-*/

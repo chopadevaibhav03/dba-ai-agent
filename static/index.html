@@ -1,100 +1,148 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OS monitoring agent</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1f3a">
+  <title>DataPatro Technologies | DBA AI Agent</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<div class="app">
-  <header class="topbar">
-    <div>
-      <h1>OS monitoring agent</h1>
-      <p class="subtitle">RHEL 9 · local Ollama (llama3.2) · psutil metrics</p>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <img src="/static/datapatro-logo.jpg" alt="DataPatro Technologies">
     </div>
-    <nav class="tabs">
-      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
-      <button class="tab-btn" data-tab="chat">Chat control</button>
-      <button class="tab-btn" data-tab="security">Security</button>
+    <nav class="side-nav" aria-label="Primary navigation">
+      <div class="nav-group">
+        <div class="nav-label">Workspace</div>
+        <button class="nav-item active" data-tab="dashboard"><span>⌂</span>Dashboard</button>
+        <button class="nav-item" data-tab="ai"><span>✦</span>AI Assistant</button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Infrastructure</div>
+        <button class="nav-item" data-tab="linux"><span>◈</span>Linux</button>
+        <button class="nav-item" data-tab="oracle"><span>◉</span>Oracle</button>
+        <button class="nav-item" data-tab="oscap"><span>⬟</span>OSCAP</button>
+        <button class="nav-item" data-tab="network"><span>⌁</span>Network</button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Monitoring</div>
+        <button class="nav-item" data-tab="health"><span>♡</span>System Health</button>
+        <button class="nav-item" data-tab="metrics"><span>⌁</span>Metrics &amp; Trends</button>
+        <button class="nav-item" data-tab="events"><span>≡</span>Events &amp; Logs</button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Security</div>
+        <button class="nav-item" data-tab="security"><span>⬢</span>Security Posture</button>
+        <button class="nav-item" data-tab="vapt"><span>◎</span>VAPT Analysis</button>
+        <button class="nav-item" data-tab="compliance"><span>✓</span>Compliance</button>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Management</div>
+        <button class="nav-item" data-tab="tools"><span>⚒</span>Tools</button>
+        <button class="nav-item" data-tab="processes"><span>▤</span>Processes</button>
+        <button class="nav-item" data-tab="services"><span>⚙</span>Services</button>
+        <button class="nav-item" data-tab="reports"><span>▥</span>Reports</button>
+      </div>
+      <div class="nav-group nav-bottom">
+        <div class="nav-label">Administration</div>
+        <button class="nav-item" data-tab="settings"><span>⚙</span>Settings</button>
+        <button class="nav-item" data-tab="about"><span>ⓘ</span>About</button>
+      </div>
     </nav>
-  </header>
+    <div class="sidebar-footer">
+      <span class="status-dot"></span>
+      <div><strong>Local platform</strong><small>FastAPI · Ollama</small></div>
+    </div>
+  </aside>
 
-  <main>
-    <section id="tab-dashboard" class="tab-panel active">
-      <div class="metric-grid">
-        <div class="metric-card">
-          <span class="metric-label">CPU</span>
-          <span class="metric-value" id="m-cpu">--</span>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">Memory</span>
-          <span class="metric-value" id="m-mem">--</span>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">Swap</span>
-          <span class="metric-value" id="m-swap">--</span>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">Disk /</span>
-          <span class="metric-value" id="m-disk">--</span>
-        </div>
+  <div class="main-shell">
+    <header class="topbar">
+      <button class="icon-btn mobile-menu" id="menu-btn" aria-label="Toggle navigation">☰</button>
+      <div class="search-box">
+        <span>⌕</span>
+        <input id="global-search" placeholder="Search systems, alerts, tools, or ask AI..." autocomplete="off">
+        <kbd>Ctrl K</kbd>
       </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2>Trends</h2>
-        </div>
-        <canvas id="trend-chart" height="90"></canvas>
+      <div class="top-actions">
+        <button class="icon-btn" title="Theme" id="theme-btn">☼</button>
+        <button class="icon-btn notification" title="Notifications">♢<b>3</b></button>
+        <button class="icon-btn" title="Help">?</button>
+        <div class="profile"><div class="avatar">VC</div><div><strong>Administrator</strong><small>Local operator</small></div><span>⌄</span></div>
       </div>
+    </header>
 
-      <div class="card">
-        <div class="card-header">
-          <h2>Analysis</h2>
-          <button id="analyze-btn" class="btn btn-primary">Analyze now</button>
+    <main class="content">
+      <section class="page-head">
+        <div>
+          <div class="eyebrow">MONITOR · ANALYZE · SECURE · AUTOMATE</div>
+          <h1 id="page-title">Operations dashboard</h1>
+          <p id="page-subtitle">Linux operations · Oracle DBA · Security · All in one platform</p>
         </div>
-        <div id="analysis-body">
-          <p class="muted">Click Analyze now to get a diagnosis from the local model.</p>
-        </div>
-      </div>
+        <div class="head-status"><span class="status-dot"></span><div><strong id="global-status">Operational</strong><small>Live system state</small></div></div>
+      </section>
 
-      <div class="card">
-        <div class="card-header">
-          <h2>Report history</h2>
+      <!-- DASHBOARD -->
+      <section class="tab-panel active" id="tab-dashboard">
+        <div class="kpi-grid">
+          <article class="kpi-card"><div class="kpi-icon cpu">CPU</div><div class="kpi-copy"><span>CPU usage</span><strong id="m-cpu">--</strong><small id="cpu-detail">Waiting for metrics</small></div><div class="ring" id="cpu-ring"><span>--</span></div></article>
+          <article class="kpi-card"><div class="kpi-icon memory">RAM</div><div class="kpi-copy"><span>Memory usage</span><strong id="m-mem">--</strong><small id="mem-detail">Waiting for metrics</small></div><div class="ring" id="mem-ring"><span>--</span></div></article>
+          <article class="kpi-card"><div class="kpi-icon disk">DSK</div><div class="kpi-copy"><span>Disk usage</span><strong id="m-disk">--</strong><small id="disk-detail">Persistent root filesystem</small></div><div class="ring" id="disk-ring"><span>--</span></div></article>
+          <article class="kpi-card alert-card"><div class="kpi-icon alert">!</div><div class="kpi-copy"><span>Active alerts</span><strong id="m-alerts">--</strong><small id="alert-detail">Calculating health</small></div><span class="kpi-arrow">›</span></article>
+          <article class="kpi-card"><div class="kpi-icon uptime">◷</div><div class="kpi-copy"><span>Uptime</span><strong id="m-uptime">--</strong><small id="uptime-detail">System availability</small></div></article>
         </div>
-        <div id="report-history"><p class="muted">No reports yet.</p></div>
-      </div>
-    </section>
 
-    <section id="tab-chat" class="tab-panel">
-      <p class="muted chat-hint">
-        Try: "is splunkd running?", "stop splunkd", "restart sshd", "list running services".
-        State-changing actions ask you to confirm before running.
-      </p>
-      <div id="chat-log" class="chat-log"></div>
-      <form id="chat-form" class="chat-input-row">
-        <input id="chat-input" type="text" placeholder="e.g. stop splunkd" autocomplete="off">
-        <button type="submit" class="btn btn-primary">Send</button>
-      </form>
-    </section>
-
-    <section id="tab-security" class="tab-panel">
-      <div class="card">
-        <div class="card-header">
-          <h2>OpenSCAP security scan</h2>
-          <button id="scan-btn" class="btn btn-primary">Run security scan</button>
+        <div class="dashboard-grid main-grid">
+          <article class="panel chart-panel large">
+            <div class="panel-head"><div><h2>System performance</h2><p>Live resource behavior across the selected window</p></div><div class="range-tabs" id="range-tabs"><button class="active" data-range="24h">24H</button><button data-range="6h">6H</button><button data-range="1h">1H</button><button data-range="7d">7D</button></div></div>
+            <div class="chart-wrap"><canvas id="trend-chart"></canvas></div>
+            <div class="chart-legend"><span><i class="legend cpu-l"></i>CPU</span><span><i class="legend mem-l"></i>Memory</span><span><i class="legend swap-l"></i>Swap</span></div>
+          </article>
+          <article class="panel health-panel"><div class="panel-head"><div><h2>Health summary</h2><p>Deterministic checks</p></div><button class="text-btn" data-tab="health">View all</button></div><div id="health-summary" class="health-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div></article>
         </div>
-        <p class="muted">
-          Checks system configuration against the CIS profile for RHEL 9. Takes a few
-          minutes -- this page will keep polling until it's done.
-        </p>
-        <div id="scan-body"><p class="muted">No scan run yet.</p></div>
-      </div>
-    </section>
-  </main>
+
+        <div class="dashboard-grid lower-grid">
+          <article class="panel events-panel"><div class="panel-head"><div><h2>Recent events</h2><p>Latest operational signals</p></div><button class="text-btn" data-tab="events">View all</button></div><div id="recent-events"></div></article>
+          <article class="panel quick-panel"><div class="panel-head"><div><h2>Quick actions</h2><p>Open a focused operations view</p></div></div><div class="quick-grid"><button data-tab="linux"><b>◈</b>Linux health</button><button data-tab="oracle"><b>◉</b>Oracle status</button><button data-tab="oscap"><b>⬟</b>Run OSCAP</button><button data-tab="events"><b>≡</b>View logs</button><button data-tab="health"><b>♡</b>System report</button><button data-tab="security"><b>⬢</b>Security</button><button data-tab="processes"><b>▤</b>Processes</button><button data-tab="ai"><b>✦</b>Open AI chat</button></div></article>
+          <article class="panel ai-preview"><div class="panel-head"><div><h2>AI Assistant</h2><p>Ask the local agent about your environment</p></div><span class="ai-live">LOCAL</span></div><div class="ai-prompts"><button data-prompt="What is the current CPU usage?">Current CPU usage?</button><button data-prompt="Check Oracle database status">Check Oracle status</button><button data-prompt="What are my OSCAP findings?">Show OSCAP findings</button><button data-prompt="Show failed services">Failed services</button></div><div class="ai-mini-input"><input id="dashboard-ai-input" placeholder="Ask anything about your infrastructure..."><button id="dashboard-ai-send">→</button></div></article>
+        </div>
+      </section>
+
+      <!-- AI -->
+      <section class="tab-panel" id="tab-ai"><div class="section-grid two"><article class="panel chat-panel"><div class="panel-head"><div><h2>AI Operations Assistant</h2><p>Domain-routed local AI using Ollama and Llama 3.2:3b</p></div><span class="badge neutral" id="ai-status-badge">Checking</span></div><div id="chat-log" class="chat-log"></div><form id="chat-form" class="chat-input-row"><input id="chat-input" placeholder="Ask about Linux, Oracle, OSCAP, or general operations..." autocomplete="off"><button type="submit" class="primary-btn">Send</button></form></article><article class="panel"><div class="panel-head"><div><h2>Suggested queries</h2><p>Use the assistant as the reasoning layer</p></div></div><div class="suggest-list"><button data-prompt="What is the current CPU usage?">Linux · What is the current CPU usage?</button><button data-prompt="Is Oracle healthy?">Oracle · Is Oracle healthy?</button><button data-prompt="Are there any blocking sessions?">Oracle · Check blocking sessions</button><button data-prompt="What are my OSCAP findings?">OSCAP · Show security findings</button><button data-prompt="Explain the current system health">General · Explain system health</button></div><div class="ai-safety"><strong>Execution boundary</strong><p>Only explicitly registered read-only tools are exposed to AI in Stage 1. No arbitrary shell, SQL, sudo, or remediation execution is permitted through the model.</p></div></article></div></section>
+
+      <!-- LINUX -->
+      <section class="tab-panel" id="tab-linux"><div class="section-grid three"><article class="panel wide"><div class="panel-head"><div><h2>Linux health</h2><p>Host-level deterministic health checks</p></div><button class="secondary-btn" id="refresh-linux">Refresh</button></div><div id="linux-health-body" class="detail-grid"><div class="loading">Loading Linux health…</div></div></article><article class="panel"><div class="panel-head"><div><h2>System profile</h2><p>Host identity and platform</p></div></div><div id="linux-system-info"></div></article></div></section>
+
+      <!-- ORACLE -->
+      <section class="tab-panel" id="tab-oracle"><div class="section-grid three"><article class="panel wide"><div class="panel-head"><div><h2>Oracle Database</h2><p>Oracle 19c read-only health telemetry</p></div><button class="secondary-btn" id="refresh-oracle">Refresh</button></div><div id="oracle-health-body" class="detail-grid"><div class="loading">Loading Oracle health…</div></div></article><article class="panel"><div class="panel-head"><div><h2>Database status</h2><p>Connection and instance</p></div></div><div id="oracle-summary"></div></article></div></section>
+
+      <!-- OSCAP / SECURITY -->
+      <section class="tab-panel" id="tab-oscap"><div class="section-grid two"><article class="panel"><div class="panel-head"><div><h2>OpenSCAP</h2><p>Compliance assessment and findings</p></div><button class="primary-btn" id="scan-btn">Run assessment</button></div><div id="scan-body" class="scan-body"><div class="empty-state"><b>OSCAP assessment</b><p>Start a scan to collect current compliance evidence.</p></div></div></article><article class="panel"><div class="panel-head"><div><h2>Content profile</h2><p>Configured SCAP content</p></div></div><div id="oscap-content"></div></article></div></section>
+      <section class="tab-panel" id="tab-security"><div class="section-grid two"><article class="panel"><div class="panel-head"><div><h2>Security posture</h2><p>Current security controls and warnings</p></div></div><div id="security-posture"></div></article><article class="panel"><div class="panel-head"><div><h2>Security actions</h2><p>Assessment-only Stage 1 workflow</p></div></div><div class="security-note"><b>Controlled remediation</b><p>Security fixes remain preview/approval driven. The AI assistant cannot execute OSCAP scans or remediation directly.</p><button class="secondary-btn" data-tab="oscap">Open OSCAP</button></div></article></div></section>
+      <section class="tab-panel" id="tab-compliance"><div class="section-grid one"><article class="panel"><div class="panel-head"><div><h2>Compliance center</h2><p>OpenSCAP findings and rule history</p></div><button class="secondary-btn" data-tab="oscap">Open assessment</button></div><div id="compliance-body"></div></article></div></section>
+      <section class="tab-panel" id="tab-vapt"><div class="section-grid one"><article class="panel"><div class="panel-head"><div><h2>VAPT analysis</h2><p>Security testing workspace — planned execution layer</p></div><span class="badge neutral">PLANNED</span></div><div class="empty-state"><b>VAPT workspace</b><p>Use this area for future vulnerability assessment, evidence collection, risk scoring, remediation approval, and verification. No exploitation or destructive testing is enabled in Stage 1.</p></div></article></div></section>
+
+      <!-- MONITORING -->
+      <section class="tab-panel" id="tab-health"><div class="section-grid one"><article class="panel"><div class="panel-head"><div><h2>System health center</h2><p>Linux + Oracle + security health in one view</p></div><button class="secondary-btn" id="refresh-all">Refresh all</button></div><div id="system-health-body" class="detail-grid"></div></article></div></section>
+      <section class="tab-panel" id="tab-metrics"><div class="section-grid one"><article class="panel chart-panel"><div class="panel-head"><div><h2>Metrics &amp; trends</h2><p>Historical resource telemetry collected by the agent</p></div></div><div class="chart-wrap tall"><canvas id="metrics-chart"></canvas></div></article></div></section>
+      <section class="tab-panel" id="tab-events"><div class="section-grid one"><article class="panel"><div class="panel-head"><div><h2>Events &amp; logs</h2><p>Operational events available from current APIs</p></div><button class="secondary-btn" id="refresh-events">Refresh</button></div><div id="events-body"></div></article></div></section>
+
+      <!-- MANAGEMENT -->
+      <section class="tab-panel" id="tab-tools"><div class="section-grid one"><article class="panel"><div class="panel-head"><div><h2>Tool registry</h2><p>Explicit deterministic tools available to the platform</p></div></div><div id="tools-body"></div></article></div></section>
+      <section class="tab-panel" id="tab-processes"><div class="section-grid one"><article class="panel"><div class="panel-head"><div><h2>Processes</h2><p>Read-only process visibility</p></div><button class="secondary-btn" id="refresh-processes">Refresh</button></div><div id="processes-body"></div></article></div></section>
+      <section class="tab-panel" id="tab-network"><div class="section-grid one"><article class="panel"><div class="panel-head"><div><h2>Network</h2><p>Interfaces, traffic, and listening ports</p></div><button class="secondary-btn" id="refresh-network">Refresh</button></div><div id="network-body"></div></article></div></section>
+      <section class="tab-panel" id="tab-services"><div class="section-grid one"><article class="panel"><div class="panel-head"><div><h2>Services</h2><p>Service inventory and controlled actions</p></div><button class="secondary-btn" id="refresh-services">Refresh</button></div><div id="services-body"></div></article></div></section>
+      <section class="tab-panel" id="tab-reports"><div class="section-grid one"><article class="panel"><div class="panel-head"><div><h2>Reports</h2><p>Analysis and security report history</p></div></div><div id="reports-body"></div></article></div></section>
+      <section class="tab-panel" id="tab-settings"><div class="section-grid two"><article class="panel"><div class="panel-head"><div><h2>Platform settings</h2><p>Current runtime configuration</p></div></div><div class="settings-list"><div><span>API</span><b>FastAPI :8801</b></div><div><span>AI provider</span><b>Ollama</b></div><div><span>AI model</span><b>llama3.2:3b</b></div><div><span>Execution mode</span><b>Read-only Stage 1</b></div></div></article><article class="panel"><div class="panel-head"><div><h2>Safety policy</h2><p>Operational guardrails</p></div></div><div class="ai-safety"><p>AI calls are domain-routed and constrained to the central tool registry. Privileged changes require future approval and controlled execution layers.</p></div></article></div></section>
+      <section class="tab-panel" id="tab-about"><div class="section-grid one"><article class="panel about-panel"><img src="/static/datapatro-logo.jpg" alt="DataPatro Technologies"><div><h2>DataPatro Technologies</h2><p>DBA AI Agent — local infrastructure, Oracle DBA, Linux and security operations platform.</p><p class="muted">Stage 1 foundation · FastAPI · Ollama · Llama 3.2:3b · Linux · Oracle 19c · OpenSCAP</p></div></article></div></section>
+    </main>
+
+    <footer class="footer"><span><strong>DataPatro Technologies</strong> · DBA AI Agent v0.2.0-stage1</span><span><i class="status-dot"></i> Local services connected</span></footer>
+  </div>
 </div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="app.js"></script>
+<script src="/static/app.js"></script>
 </body>
 </html>

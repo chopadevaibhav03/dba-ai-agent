@@ -35,6 +35,10 @@ os.makedirs(config.SCANS_DIR, exist_ok=True)
 
 SEVERITY_ORDER = {"high": 0, "medium": 1, "low": 2, "unknown": 3, None: 3}
 
+# Full CIS scans on this host can legitimately take 30-40 minutes.
+# This is an ESTIMATED UI progress value, not an exact OpenSCAP percentage.
+EXPECTED_SCAN_SECONDS = int(os.environ.get("OSCAP_EXPECTED_SCAN_SECONDS", "2400"))
+
 
 # ---------- findings cache ----------
 # Once a rule's failure has been explained by the LLM, the recommendation is
@@ -408,12 +412,56 @@ def summarize_findings(parsed: dict) -> dict:
     }
 
 
+def _update_estimated_progress(scan_id: str, started_at: str):
+    # OpenSCAP does not expose a stable exact percentage through the current
+    # subprocess interface. Estimate progress from elapsed scan time.
+    try:
+        started = datetime.fromisoformat(started_at)
+    except Exception:
+        started = datetime.now(timezone.utc)
+
+    while True:
+        status = get_scan_status(scan_id)
+        if not status.get("ok") or status.get("status") != "running":
+            return
+
+        elapsed = max(0, (datetime.now(timezone.utc) - started).total_seconds())
+        expected = max(60, EXPECTED_SCAN_SECONDS)
+        percent = min(95, int((elapsed / expected) * 95))
+
+        _write_status(scan_id, {
+            **status,
+            "progress_percent": percent,
+            "progress_estimated": True,
+            "current_stage": "Evaluating CIS rules",
+            "elapsed_seconds": int(elapsed),
+            "expected_seconds": expected,
+        })
+
+        threading.Event().wait(5)
+
+
+
 def _run_scan_thread(scan_id: str, profile: str):
+    started_at = datetime.now(timezone.utc).isoformat()
+
     _write_status(scan_id, {
         "status": "running",
         "profile": profile,
-        "started_at": datetime.now(timezone.utc).isoformat(),
+        "started_at": started_at,
+        "progress_percent": 1,
+        "progress_estimated": True,
+        "current_stage": "Starting OpenSCAP",
+        "elapsed_seconds": 0,
+        "expected_seconds": EXPECTED_SCAN_SECONDS,
     })
+
+    progress_thread = threading.Thread(
+        target=_update_estimated_progress,
+        args=(scan_id, started_at),
+        daemon=True,
+    )
+    progress_thread.start()
 
     results_xml = os.path.join(config.SCANS_DIR, f"{scan_id}-results.xml")
     report_html = os.path.join(config.SCANS_DIR, f"{scan_id}-report.html")
@@ -440,6 +488,9 @@ def _run_scan_thread(scan_id: str, profile: str):
         if not os.path.exists(results_xml):
             _write_status(scan_id, {
                 "status": "error",
+                "progress_percent": 100,
+                "progress_estimated": False,
+                "current_stage": "Scan failed",
                 "error": proc.stderr.strip()[:2000] or "oscap produced no results file",
             })
             return
@@ -458,6 +509,9 @@ def _run_scan_thread(scan_id: str, profile: str):
         _write_status(scan_id, {
             "status": "done",
             "profile": profile,
+            "progress_percent": 100,
+            "progress_estimated": False,
+            "current_stage": "Completed",
             "finished_at": datetime.now(timezone.utc).isoformat(),
             "parsed": parsed,
             "summary": summary,
@@ -465,14 +519,26 @@ def _run_scan_thread(scan_id: str, profile: str):
         })
 
     except Exception as e:
-        _write_status(scan_id, {"status": "error", "error": str(e)})
+        _write_status(scan_id, {
+            "status": "error",
+            "progress_percent": 0,
+            "progress_estimated": False,
+            "current_stage": "Scan failed",
+            "error": str(e),
+        })
 
 
 def start_scan(profile: str = None) -> str:
     """Kick off a scan in the background. Returns a scan_id to poll."""
     profile = profile or config.OSCAP_DEFAULT_PROFILE
     scan_id = uuid.uuid4().hex[:12]
-    _write_status(scan_id, {"status": "queued", "profile": profile})
+    _write_status(scan_id, {
+        "status": "queued",
+        "profile": profile,
+        "progress_percent": 0,
+        "progress_estimated": True,
+        "current_stage": "Queued",
+    })
     thread = threading.Thread(target=_run_scan_thread, args=(scan_id, profile), daemon=True)
     thread.start()
     return scan_id
