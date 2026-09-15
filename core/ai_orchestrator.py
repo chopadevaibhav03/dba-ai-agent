@@ -39,6 +39,7 @@ Stage 1 safety:
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Any
 
@@ -47,6 +48,8 @@ import requests
 import config
 from core.domain_router import detect_domain
 from core.tool_registry import execute_tool, list_tools
+from service_control import list_services
+from services.oracle_health_service import get_oracle_health
 
 
 # ---------------------------------------------------------------------------
@@ -467,6 +470,149 @@ def _execute_registered_tool(
 
 
 # ---------------------------------------------------------------------------
+# Conservative deterministic fast paths
+# ---------------------------------------------------------------------------
+
+def try_fast_path(
+    user_message: str,
+) -> dict[str, Any] | None:
+    """Answer a few unambiguous operational questions without Ollama."""
+
+    message = user_message.strip().lower()
+
+    service_match = re.fullmatch(
+        r"(?:is ([a-z0-9_.@-]+) running|([a-z0-9_.@-]+) status)",
+        message,
+    )
+
+    if service_match:
+        service = service_match.group(1) or service_match.group(2)
+        result = _execute_registered_tool(
+            "linux.failed_services",
+            {},
+        )
+        failed_services = result.get("services", []) if result.get("ok") else []
+        failed_units = {
+            str(item.get("unit", "")).removesuffix(".service")
+            for item in failed_services
+            if isinstance(item, dict)
+        }
+
+        if not result.get("ok"):
+            reply = f"I could not check service status: {result.get('error', 'unknown error')}"
+        elif service.removesuffix(".service") in failed_units:
+            reply = f"{service} is failed."
+        else:
+            reply = f"{service} is not in the failed services list."
+
+        return {
+            "ok": True,
+            "reply": reply,
+            "tool_calls": [{"name": "linux.failed_services", "arguments": {}, "result": result}],
+        }
+
+    if message in {"list services", "show services"}:
+        try:
+            services = list_services(active_only=False)
+            result = {"ok": True, "services": services}
+            names = [str(item.get("unit", item)) for item in services]
+            reply = (
+                f"Services: {', '.join(names)}"
+                if names
+                else "No services were returned."
+            )
+        except Exception as exc:
+            result = {"ok": False, "error": str(exc)}
+            reply = f"I could not list services: {exc}"
+
+        return {
+            "ok": True,
+            "reply": reply,
+            "tool_calls": [{"name": "service_control.list_services", "arguments": {}, "result": result}],
+        }
+
+    if message in {"cpu usage", "current cpu"}:
+        result = _execute_registered_tool("linux.cpu", {})
+        if result.get("ok"):
+            reply = (
+                f"CPU usage is {result.get('usage_percent', '--')}%. "
+                f"Load averages: {result.get('load_1m', '--')}, "
+                f"{result.get('load_5m', '--')}, "
+                f"{result.get('load_15m', '--')} (1m, 5m, 15m)."
+            )
+        else:
+            reply = f"I could not read CPU usage: {result.get('error', 'unknown error')}"
+
+        return {
+            "ok": True,
+            "reply": reply,
+            "tool_calls": [{"name": "linux.cpu", "arguments": {}, "result": result}],
+        }
+
+    return None
+
+
+def try_oracle_fast_path(
+    user_message: str,
+) -> dict[str, Any] | None:
+    """Summarize the complete Oracle health snapshot in one Ollama call."""
+
+    message = user_message.strip().lower()
+    if not re.fullmatch(
+        r"(?:is oracle healthy|oracle health|oracle status)[?.!]?$",
+        message,
+    ):
+        return None
+
+    total_start = time.perf_counter()
+    timing: dict[str, Any] = {
+        "routing_ms": 0.0,
+        "schema_build_ms": 0.0,
+        "ollama_calls": [],
+        "tool_execution": [],
+    }
+    health = get_oracle_health()
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Summarize the supplied Oracle health data in plain English. "
+                "State the overall status first, then mention the most important "
+                "findings. Do not call tools, invent values, or add markdown tables."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "Oracle health snapshot:\n"
+                + json.dumps(health, default=str)
+            ),
+        },
+    ]
+
+    data = _call_ollama(messages, "general", timing)
+    response = data.get("message") or {}
+    reply = (
+        response.get("content")
+        or "The AI did not return an Oracle health summary."
+    ).strip()
+    total_elapsed = (time.perf_counter() - total_start) * 1000
+    timing["total_ms"] = round(total_elapsed, 2)
+    timing["total_seconds"] = round(total_elapsed / 1000, 3)
+
+    return {
+        "ok": True,
+        "reply": reply,
+        "domain": "oracle_fast_path",
+        "tool_calls": [],
+        "iterations": 1,
+        "model": config.OLLAMA_MODEL,
+        "health": health,
+        "timing": timing,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Main AI function
 # ---------------------------------------------------------------------------
 
@@ -516,6 +662,15 @@ def run_ai(
             "domain": "general",
             "tool_calls": [],
         }
+
+    oracle_fast_path = try_oracle_fast_path(user_message)
+    if oracle_fast_path is not None:
+        return oracle_fast_path
+
+    fast_path = try_fast_path(user_message)
+    if fast_path is not None:
+        fast_path["domain"] = "fast_path"
+        return fast_path
 
     # ---------------------------------------------------------------
     # Determine domain BEFORE calling Ollama.

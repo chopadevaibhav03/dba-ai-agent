@@ -33,7 +33,7 @@ import config
 from automation import WHITELIST
 from tools import TOOLS_SCHEMA, TOOL_FUNCTIONS
 
-MAX_TOOL_ITERATIONS = 4
+MAX_TOOL_ITERATIONS = 2
 OLLAMA_CHAT_URL = config.OLLAMA_URL.replace("/api/generate", "/api/chat")
 
 SYSTEM_PROMPT = f"""You are a helpful Linux system administration assistant running locally
@@ -130,8 +130,15 @@ def _ollama_chat(messages: list, tools: list) -> dict:
             "messages": messages,
             "tools": tools,
             "stream": False,
+            "options": {
+                "num_ctx": 2048,        # Smaller context window
+                "num_predict": 256,     # Limit response length
+                "temperature": 0.2,     # More focused answers
+                "num_thread": 2,        # Leave CPU cores free
+                "top_p": 0.9,
+            }
         },
-        timeout=120,
+        timeout=45,                     # Reduced from 120 seconds
     )
     resp.raise_for_status()
     return resp.json()

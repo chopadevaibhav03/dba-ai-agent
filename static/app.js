@@ -132,16 +132,78 @@ async function loadNetwork() { try { const [i, p] = await Promise.all([tool("lin
 async function loadServices() { try { const d = await getJSON("/services"); const list = d.services || d.items || d || []; $("services-body").innerHTML = Array.isArray(list) && list.length ? `<table class="data-table"><thead><tr><th>Service</th><th>State</th></tr></thead><tbody>${list.map(s => `<tr><td>${esc(typeof s === "string" ? s : s.name || s.service || "--")}</td><td>${esc(typeof s === "string" ? "available" : s.state || s.status || "--")}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-state"><b>No service inventory returned</b><p>Use the API service endpoint to query an individual service.</p></div>` } catch (e) { $("services-body").innerHTML = `<div class="error">${esc(e.message)}</div>` } }
 
 function addMessage(role, text) { const d = document.createElement("div"); d.className = `msg msg-${role}`; d.textContent = text; $("chat-log").appendChild(d); $("chat-log").scrollTop = $("chat-log").scrollHeight; return d }
-async function sendChat(text) { if (!text) return; addMessage("user", text); $("chat-input").value = ""; const waiting = addMessage("assistant", "Thinking…"); try { const d = await getJSON("/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text }) }); waiting.remove(); if (d.ok) { const r = d.result || d; addMessage("assistant", r.reply || JSON.stringify(r, null, 2)); } else addMessage("assistant", d.error || d.result?.error || "AI request failed.") } catch (e) { waiting.textContent = `AI request failed: ${e.message}` } }
+function setAIBusy(busy) {
+  const badge = $("ai-status-badge");
+  if (!badge) return;
+  badge.textContent = busy ? "Busy" : "Online";
+  badge.className = busy ? "badge neutral busy" : "badge neutral online";
+  const input = $("chat-input");
+  if (input) input.disabled = busy;
+}
+
+function renderToolSteps(toolCalls) {
+  if (!toolCalls || !toolCalls.length) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "tool-steps";
+  wrap.innerHTML = toolCalls.map(t =>
+    `<span class="tool-step">✓ ${esc(t.name)}</span>`
+  ).join("");
+  return wrap;
+}
+
+async function sendChat(text) {
+  if (!text) return;
+  addMessage("user", text);
+  $("chat-input").value = "";
+  const waiting = addMessage("assistant", "Thinking…");
+  setAIBusy(true);
+  try {
+    const d = await getJSON("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text })
+    });
+    waiting.remove();
+    if (d.ok) {
+      const r = d.result || d;
+      const msg = addMessage("assistant", r.reply || JSON.stringify(r, null, 2));
+      const steps = renderToolSteps(r.tool_calls);
+      if (steps) msg.appendChild(steps);
+    } else {
+      addMessage("assistant", d.error || d.result?.error || "AI request failed.");
+    }
+  } catch (e) {
+    waiting.textContent = `AI request failed: ${e.message}`;
+  } finally {
+    setAIBusy(false);
+  }
+}
 on("chat-form", "submit", e => { e.preventDefault(); sendChat($("chat-input").value.trim()) });
 on("dashboard-ai-send", "click", () => sendChat($("dashboard-ai-input").value.trim()));
 on("dashboard-ai-input", "keydown", e => { if (e.key === "Enter") sendChat(e.target.value.trim()) });
-async function loadAIStatus() { try { const d = await getJSON("/ai/status"); $("ai-status-badge").textContent = d.model || "Connected"; $("ai-status-badge").className = "badge neutral" } catch (e) { $("ai-status-badge").textContent = "Unavailable"; $("ai-status-badge").className = "badge neutral" } }
+async function loadAIStatus() { try { await getJSON("/ai/status"); setAIBusy(false) } catch (e) { const badge = $("ai-status-badge"); if (badge) { badge.textContent = "Offline"; badge.className = "badge neutral offline" } } }
 
 const loaders = { dashboard: async () => { await Promise.all([loadLatest(), loadHistory(), loadHealth(), loadEvents()]); }, ai: loadAIStatus, linux: loadHealth, oracle: loadOracle, oscap: loadOSCAP, security: async () => { if (!cache.linux) await loadHealth(); renderSecurity() }, compliance: loadCompliance, health: async () => { await Promise.all([loadHealth(), loadOracle()]); await loadSystemHealth() }, metrics: async () => { if (!cache.history) await loadHistory(); if (cache.history) buildMetricsChart(cache.history) }, events: loadEvents, tools: loadTools, processes: loadProcesses, network: loadNetwork, services: loadServices, reports: loadReports };
 async function loadTab(tab) { try { if (loaders[tab]) await loaders[tab]() } catch (e) { console.debug(`tab ${tab}`, e) } }
 
 on("refresh-linux", "click", loadHealth); on("refresh-oracle", "click", loadOracle); on("refresh-all", "click", async () => { await Promise.all([loadLatest(), loadHealth(), loadOracle(), loadSystemHealth()]); toast("Health refreshed") }); on("refresh-events", "click", loadEvents); on("refresh-processes", "click", loadProcesses); on("refresh-network", "click", loadNetwork); on("refresh-services", "click", loadServices);
+
+function applyTheme(night) {
+  document.body.classList.toggle("night", night);
+  const button = $("theme-btn");
+  if (!button) return;
+  button.textContent = night ? "☼" : "☾";
+  button.title = night ? "Switch to light mode" : "Switch to dark mode";
+  button.setAttribute("aria-label", button.title);
+}
+
+const savedTheme = localStorage.getItem("os-agent-theme");
+applyTheme(savedTheme ? savedTheme === "night" : document.body.classList.contains("night"));
+on("theme-btn", "click", () => {
+  const night = !document.body.classList.contains("night");
+  applyTheme(night);
+  localStorage.setItem("os-agent-theme", night ? "night" : "light");
+});
 
 loadTab("dashboard");
 setInterval(loadLatest, 10000); setInterval(() => { if (document.querySelector("#tab-dashboard.active")) loadHistory() }, 30000); setInterval(() => { if (document.querySelector("#tab-dashboard.active")) loadHealth() }, 20000);

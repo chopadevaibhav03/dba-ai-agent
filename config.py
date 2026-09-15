@@ -16,14 +16,14 @@ DISK_MOUNTS = ["/"]              # add more mount points if needed, e.g. ["/", "
 
 # --- Ollama ---
 OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama3.2:3b"
+OLLAMA_MODEL = "llama3.2:1b"
 
 # --- Thresholds (percent) that trigger an "analyze now" worthy condition ---
 THRESHOLDS = {
     "cpu_percent": 85,
     "mem_percent": 85,
     "swap_percent": 50,     # any real swap usage is worth flagging
-    "disk_percent": 90,
+    "disk_percent": 90, 
 }
 
 # --- Automation safety ---

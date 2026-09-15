@@ -1,16 +1,4 @@
-"""
-Flask API for the OS monitoring agent web UI.
 
-Serves the static frontend (static/) directly and exposes JSON endpoints
-under /api/* for metrics, analysis, reports, and prompt-driven service
-control. Meant to run behind Gunicorn, with Apache reverse-proxying to it.
-
-Run for local testing:
-    python3 api.py            # dev server on :8000
-
-Run for production (what systemd will do):
-    gunicorn -w 2 -b 127.0.0.1:8000 api:app
-"""
 
 import json
 import os
