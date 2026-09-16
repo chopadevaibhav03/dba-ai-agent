@@ -53,7 +53,52 @@ function renderLinux(d) { const x = d.data || {}, s = x.system || {}, c = x.cpu 
 async function loadOracle() { try { const d = await getJSON("/oracle/health"); cache.oracle = d; const h = d.health || {}, data = d.data || {}; const db = data.database || {}, inst = data.instance || {}, conn = data.connection || {}; $("oracle-health-body").innerHTML = `<div class="data-card"><span>Status</span><b>${esc(h.status || "unknown").toUpperCase()}</b></div><div class="data-card"><span>Database</span><b>${esc(db.db_name || db.name || "--")}</b></div><div class="data-card"><span>Instance</span><b>${esc(inst.instance_name || "--")}</b></div><div class="data-card"><span>Connection</span><b>${conn.connected === true ? "Connected" : "Unavailable"}</b></div><div class="data-card"><span>Critical</span><b>${h.critical_count || 0}</b></div><div class="data-card"><span>Warnings</span><b>${h.warning_count || 0}</b></div>`; $("oracle-summary").innerHTML = `<div class="kv-list">${[["Database", db.db_name || "--"], ["Open mode", db.open_mode || "--"], ["Instance", inst.instance_name || "--"], ["Instance status", inst.status || "--"], ["Service", conn.service_name || "--"], ["PDBs", (data.pdbs || []).length || "--"]].map(r => `<div class="kv"><span>${r[0]}</span><b>${esc(r[1])}</b></div>`).join("")}</div>`; return d } catch (e) { $("oracle-health-body").innerHTML = `<div class="error">${esc(e.message)}</div>`; } }
 
 async function loadOSCAP() { try { const d = await getJSON("/security/content"); cache.oscap = d; $("oscap-content").innerHTML = `<div class="kv-list">${Object.entries(d.content || d || {}).slice(0, 12).map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><b>${esc(typeof v === "object" ? JSON.stringify(v) : v)}</b></div>`).join("")}</div>`; if (!Object.keys(d.content || d || {}).length) $("oscap-content").innerHTML = `<div class="empty-state"><b>Configured content unavailable</b><p>Check the OpenSCAP configuration on the host.</p></div>`; loadCompliance(); } catch (e) { $("oscap-content").innerHTML = `<div class="error">${esc(e.message)}</div>`; } }
-async function loadCompliance() { try { const d = await getJSON("/security/findings"); const items = d.findings || d.items || []; $("compliance-body").innerHTML = items.length ? items.slice(0, 60).map(f => `<div class="finding"><strong>${esc(f.rule_id || f.rule || f.title || "Finding")}</strong><small>${esc(f.title || f.message || f.severity || "")}</small></div>`).join("") : `<div class="empty-state"><b>No stored findings</b><p>Run an OpenSCAP assessment to populate compliance evidence.</p></div>`; cache.findings = d; } catch (e) { $("compliance-body").innerHTML = `<div class="error">${esc(e.message)}</div>`; } }
+async function loadCompliance() {
+  try {
+    const d = await getJSON("/security/findings");
+    const items = d.findings || d.items || d || [];
+    cache.findings = d;
+
+    if (!items.length) {
+      $("compliance-body").innerHTML = `<div class="empty-state"><b>No stored findings</b><p>Run an OpenSCAP assessment to populate compliance evidence.</p></div>`;
+      return;
+    }
+
+    const order = ["critical", "high", "medium", "low"];
+    const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+    items.forEach(f => {
+      const s = (f.severity || "low").toLowerCase();
+      if (counts[s] !== undefined) counts[s]++;
+    });
+
+    const strip = `<div class="sev-strip">${order.map(s =>
+      `<div class="sev-count"><b class="severity ${s}" style="display:inline-block;padding:2px 10px;border-radius:20px">${counts[s]}</b><span>${s}</span></div>`
+    ).join("")}</div>`;
+
+    const sorted = [...items].sort((a, b) =>
+      order.indexOf((a.severity || "low").toLowerCase()) - order.indexOf((b.severity || "low").toLowerCase())
+    );
+
+    const rows = sorted.slice(0, 60).map(f => {
+      const sev = (f.severity || "low").toLowerCase();
+      const age = f.last_seen ? new Date(f.last_seen).toLocaleDateString() : "--";
+      return `<tr>
+        <td><span class="severity ${sev}">${esc(sev)}</span></td>
+        <td>${esc(f.rule_name || "Finding")}</td>
+        <td class="finding-rule">${esc(f.rule_id || "")}</td>
+        <td>${age}${f.times_seen > 1 ? ` <span class="muted">(seen ${f.times_seen}x)</span>` : ""}</td>
+      </tr>`;
+    }).join("");
+
+    $("compliance-body").innerHTML = `${strip}
+      <table class="findings-table">
+        <thead><tr><th>Severity</th><th>Finding</th><th>Check</th><th>Last seen</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (e) {
+    $("compliance-body").innerHTML = `<div class="error">${esc(e.message)}</div>`;
+  }
+}
 
 function renderSecurity() { const h = cache.linux?.health || {}; const items = [...(h.critical || []).map(x => ["critical", x.message]), ...(h.warnings || []).map(x => ["warning", x.message])]; $("security-posture").innerHTML = items.length ? items.map(x => healthItem(x[0], x[1])).join("") : `${healthItem("ok", "No Linux health warnings currently reported")}`; }
 

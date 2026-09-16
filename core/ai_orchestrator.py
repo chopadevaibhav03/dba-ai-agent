@@ -117,6 +117,9 @@ IMPORTANT SAFETY RULES:
 11. Only use tools explicitly provided to you.
 12. Base operational answers on actual tool results.
 13. If a tool cannot answer the question, say so clearly.
+14. Never use bracketed placeholder text like "[Insert information]"
+    in your answer. If you don't have a real value, say you don't
+    have that data instead of leaving a placeholder.
 
 When a tool result shows a problem:
 
@@ -128,6 +131,14 @@ When a tool result shows a problem:
 You are an analysis and diagnostic assistant,
 not an autonomous executor.
 
+For the final answer after tool results are available, use exactly this shape:
+
+Status: <one word — Healthy, Warning, or Critical>
+Finding: <one sentence stating what the tool found, nothing else>
+Next step: <one sentence — either 'No action needed' or a single concrete recommendation. Never both recommend an action and tell the user not to take it.>
+
+Do not hedge or contradict the tool result.
+Do not add caveats about the tool's limitations unless the tool result itself was empty or an error.
 Keep answers concise and practical.
 """.strip()
 
@@ -266,6 +277,10 @@ def _call_ollama(
         "model": config.OLLAMA_MODEL,
         "messages": messages,
         "stream": False,
+        "keep_alive": getattr(config, "OLLAMA_KEEP_ALIVE", "30m"),
+        "options": {
+            "temperature": 0.2,
+        },
     }
 
     # For general questions there are no operational tools.
@@ -467,6 +482,28 @@ def _execute_registered_tool(
             "ok": False,
             "error": str(exc),
         }
+
+
+def _is_empty_result(result: Any) -> bool:
+    """
+    True if a tool result represents "no data". Used to bypass the
+    model entirely for empty results -- narrating "nothing found" is
+    exactly the case where a small local model is most prone to
+    inventing example data instead of reporting the empty result.
+    """
+    if result is None:
+        return True
+    if isinstance(result, list):
+        return len(result) == 0
+    if isinstance(result, dict):
+        if result.get("ok") is False:
+            return False  # an error isn't "empty" -- let the model explain it
+        for key in ("findings", "results", "rows", "items", "data", "sessions"):
+            if key in result and isinstance(result[key], list):
+                return len(result[key]) == 0
+        if not result:
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -696,10 +733,23 @@ def run_ai(
         "tool_execution": [],
     }
 
+    system_content = SYSTEM_PROMPT
+
+    if domain == "general":
+        system_content += (
+            "\n\nNOTE: No diagnostic tools are available for this "
+            "request -- it did not match Linux, Oracle, or OSCAP. "
+            "If the user is asking about specific system, database, "
+            "or security data (status, usage, health, findings), you "
+            "do NOT have that information. Say so plainly and suggest "
+            "they ask about Linux, Oracle, or OSCAP specifically. Do "
+            "NOT provide any specific number, percentage, or status."
+        )
+
     messages: list[dict[str, Any]] = [
         {
             "role": "system",
-            "content": SYSTEM_PROMPT,
+            "content": system_content,
         },
         {
             "role": "user",
@@ -819,6 +869,43 @@ def run_ai(
                         ),
                     }
                 )
+
+            # If every tool called this turn came back empty, answer
+            # deterministically -- never let the model narrate "nothing
+            # found" into invented example data.
+            this_round = tool_history[-len(tool_calls):]
+            if tool_calls and all(
+                _is_empty_result(history["result"])
+                for history in this_round
+            ):
+                names = ", ".join(
+                    history["name"]
+                    for history in this_round
+                )
+                total_elapsed = (
+                    time.perf_counter() - total_start
+                ) * 1000
+                timing["total_ms"] = round(
+                    total_elapsed,
+                    2,
+                )
+                timing["total_seconds"] = round(
+                    total_elapsed / 1000,
+                    3,
+                )
+                return {
+                    "ok": True,
+                    "reply": (
+                        f"No results were returned by {names}. "
+                        "Nothing to report."
+                    ),
+                    "domain": domain,
+                    "tool_calls": tool_history,
+                    "iterations": iteration + 1,
+                    "model": config.OLLAMA_MODEL,
+                    "timing": timing,
+                    "empty_result_shortcircuit": True,
+                }
 
         # -----------------------------------------------------------
         # Tool iteration limit reached.
