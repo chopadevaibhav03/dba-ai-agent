@@ -1,13 +1,3 @@
-"""
-Streamlit dashboard for the OS monitoring agent.
-
-Run with:
-    streamlit run app.py
-
-Requires collector.py to be running separately (or in the background)
-to populate metrics.db with data to display.
-"""
-
 import json
 import sqlite3
 

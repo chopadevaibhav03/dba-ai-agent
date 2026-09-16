@@ -7,13 +7,13 @@
 #   sudo systemctl status os-agent-web
 
 [Unit]
-Description=OS monitoring agent - web API (Gunicorn/Flask)
+Description=OS monitoring agent - web API 
 After=network.target
 
 [Service]
 Type=simple
 WorkingDirectory=/home/test/opt/os-agent
-ExecStart=/home/test/opt/os-agent/venv/bin/gunicorn -w 2 -b 127.0.0.1:8800 --timeout 180 api:app
+ExecStart=/home/test/opt/os-agent/venv/bin/uvicorn core.fastapi_app:app --host 0.0.0.0 --port 8801
 Restart=always
 RestartSec=5
 User=root

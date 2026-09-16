@@ -53,7 +53,52 @@ function renderLinux(d) { const x = d.data || {}, s = x.system || {}, c = x.cpu 
 async function loadOracle() { try { const d = await getJSON("/oracle/health"); cache.oracle = d; const h = d.health || {}, data = d.data || {}; const db = data.database || {}, inst = data.instance || {}, conn = data.connection || {}; $("oracle-health-body").innerHTML = `<div class="data-card"><span>Status</span><b>${esc(h.status || "unknown").toUpperCase()}</b></div><div class="data-card"><span>Database</span><b>${esc(db.db_name || db.name || "--")}</b></div><div class="data-card"><span>Instance</span><b>${esc(inst.instance_name || "--")}</b></div><div class="data-card"><span>Connection</span><b>${conn.connected === true ? "Connected" : "Unavailable"}</b></div><div class="data-card"><span>Critical</span><b>${h.critical_count || 0}</b></div><div class="data-card"><span>Warnings</span><b>${h.warning_count || 0}</b></div>`; $("oracle-summary").innerHTML = `<div class="kv-list">${[["Database", db.db_name || "--"], ["Open mode", db.open_mode || "--"], ["Instance", inst.instance_name || "--"], ["Instance status", inst.status || "--"], ["Service", conn.service_name || "--"], ["PDBs", (data.pdbs || []).length || "--"]].map(r => `<div class="kv"><span>${r[0]}</span><b>${esc(r[1])}</b></div>`).join("")}</div>`; return d } catch (e) { $("oracle-health-body").innerHTML = `<div class="error">${esc(e.message)}</div>`; } }
 
 async function loadOSCAP() { try { const d = await getJSON("/security/content"); cache.oscap = d; $("oscap-content").innerHTML = `<div class="kv-list">${Object.entries(d.content || d || {}).slice(0, 12).map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><b>${esc(typeof v === "object" ? JSON.stringify(v) : v)}</b></div>`).join("")}</div>`; if (!Object.keys(d.content || d || {}).length) $("oscap-content").innerHTML = `<div class="empty-state"><b>Configured content unavailable</b><p>Check the OpenSCAP configuration on the host.</p></div>`; loadCompliance(); } catch (e) { $("oscap-content").innerHTML = `<div class="error">${esc(e.message)}</div>`; } }
-async function loadCompliance() { try { const d = await getJSON("/security/findings"); const items = d.findings || d.items || []; $("compliance-body").innerHTML = items.length ? items.slice(0, 60).map(f => `<div class="finding"><strong>${esc(f.rule_id || f.rule || f.title || "Finding")}</strong><small>${esc(f.title || f.message || f.severity || "")}</small></div>`).join("") : `<div class="empty-state"><b>No stored findings</b><p>Run an OpenSCAP assessment to populate compliance evidence.</p></div>`; cache.findings = d; } catch (e) { $("compliance-body").innerHTML = `<div class="error">${esc(e.message)}</div>`; } }
+async function loadCompliance() {
+  try {
+    const d = await getJSON("/security/findings");
+    const items = d.findings || d.items || d || [];
+    cache.findings = d;
+
+    if (!items.length) {
+      $("compliance-body").innerHTML = `<div class="empty-state"><b>No stored findings</b><p>Run an OpenSCAP assessment to populate compliance evidence.</p></div>`;
+      return;
+    }
+
+    const order = ["critical", "high", "medium", "low"];
+    const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+    items.forEach(f => {
+      const s = (f.severity || "low").toLowerCase();
+      if (counts[s] !== undefined) counts[s]++;
+    });
+
+    const strip = `<div class="sev-strip">${order.map(s =>
+      `<div class="sev-count"><b class="severity ${s}" style="display:inline-block;padding:2px 10px;border-radius:20px">${counts[s]}</b><span>${s}</span></div>`
+    ).join("")}</div>`;
+
+    const sorted = [...items].sort((a, b) =>
+      order.indexOf((a.severity || "low").toLowerCase()) - order.indexOf((b.severity || "low").toLowerCase())
+    );
+
+    const rows = sorted.slice(0, 60).map(f => {
+      const sev = (f.severity || "low").toLowerCase();
+      const age = f.last_seen ? new Date(f.last_seen).toLocaleDateString() : "--";
+      return `<tr>
+        <td><span class="severity ${sev}">${esc(sev)}</span></td>
+        <td>${esc(f.rule_name || "Finding")}</td>
+        <td class="finding-rule">${esc(f.rule_id || "")}</td>
+        <td>${age}${f.times_seen > 1 ? ` <span class="muted">(seen ${f.times_seen}x)</span>` : ""}</td>
+      </tr>`;
+    }).join("");
+
+    $("compliance-body").innerHTML = `${strip}
+      <table class="findings-table">
+        <thead><tr><th>Severity</th><th>Finding</th><th>Check</th><th>Last seen</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  } catch (e) {
+    $("compliance-body").innerHTML = `<div class="error">${esc(e.message)}</div>`;
+  }
+}
 
 function renderSecurity() { const h = cache.linux?.health || {}; const items = [...(h.critical || []).map(x => ["critical", x.message]), ...(h.warnings || []).map(x => ["warning", x.message])]; $("security-posture").innerHTML = items.length ? items.map(x => healthItem(x[0], x[1])).join("") : `${healthItem("ok", "No Linux health warnings currently reported")}`; }
 
@@ -132,16 +177,78 @@ async function loadNetwork() { try { const [i, p] = await Promise.all([tool("lin
 async function loadServices() { try { const d = await getJSON("/services"); const list = d.services || d.items || d || []; $("services-body").innerHTML = Array.isArray(list) && list.length ? `<table class="data-table"><thead><tr><th>Service</th><th>State</th></tr></thead><tbody>${list.map(s => `<tr><td>${esc(typeof s === "string" ? s : s.name || s.service || "--")}</td><td>${esc(typeof s === "string" ? "available" : s.state || s.status || "--")}</td></tr>`).join("")}</tbody></table>` : `<div class="empty-state"><b>No service inventory returned</b><p>Use the API service endpoint to query an individual service.</p></div>` } catch (e) { $("services-body").innerHTML = `<div class="error">${esc(e.message)}</div>` } }
 
 function addMessage(role, text) { const d = document.createElement("div"); d.className = `msg msg-${role}`; d.textContent = text; $("chat-log").appendChild(d); $("chat-log").scrollTop = $("chat-log").scrollHeight; return d }
-async function sendChat(text) { if (!text) return; addMessage("user", text); $("chat-input").value = ""; const waiting = addMessage("assistant", "Thinking…"); try { const d = await getJSON("/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text }) }); waiting.remove(); if (d.ok) { const r = d.result || d; addMessage("assistant", r.reply || JSON.stringify(r, null, 2)); } else addMessage("assistant", d.error || d.result?.error || "AI request failed.") } catch (e) { waiting.textContent = `AI request failed: ${e.message}` } }
+function setAIBusy(busy) {
+  const badge = $("ai-status-badge");
+  if (!badge) return;
+  badge.textContent = busy ? "Busy" : "Online";
+  badge.className = busy ? "badge neutral busy" : "badge neutral online";
+  const input = $("chat-input");
+  if (input) input.disabled = busy;
+}
+
+function renderToolSteps(toolCalls) {
+  if (!toolCalls || !toolCalls.length) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "tool-steps";
+  wrap.innerHTML = toolCalls.map(t =>
+    `<span class="tool-step">✓ ${esc(t.name)}</span>`
+  ).join("");
+  return wrap;
+}
+
+async function sendChat(text) {
+  if (!text) return;
+  addMessage("user", text);
+  $("chat-input").value = "";
+  const waiting = addMessage("assistant", "Thinking…");
+  setAIBusy(true);
+  try {
+    const d = await getJSON("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text })
+    });
+    waiting.remove();
+    if (d.ok) {
+      const r = d.result || d;
+      const msg = addMessage("assistant", r.reply || JSON.stringify(r, null, 2));
+      const steps = renderToolSteps(r.tool_calls);
+      if (steps) msg.appendChild(steps);
+    } else {
+      addMessage("assistant", d.error || d.result?.error || "AI request failed.");
+    }
+  } catch (e) {
+    waiting.textContent = `AI request failed: ${e.message}`;
+  } finally {
+    setAIBusy(false);
+  }
+}
 on("chat-form", "submit", e => { e.preventDefault(); sendChat($("chat-input").value.trim()) });
 on("dashboard-ai-send", "click", () => sendChat($("dashboard-ai-input").value.trim()));
 on("dashboard-ai-input", "keydown", e => { if (e.key === "Enter") sendChat(e.target.value.trim()) });
-async function loadAIStatus() { try { const d = await getJSON("/ai/status"); $("ai-status-badge").textContent = d.model || "Connected"; $("ai-status-badge").className = "badge neutral" } catch (e) { $("ai-status-badge").textContent = "Unavailable"; $("ai-status-badge").className = "badge neutral" } }
+async function loadAIStatus() { try { await getJSON("/ai/status"); setAIBusy(false) } catch (e) { const badge = $("ai-status-badge"); if (badge) { badge.textContent = "Offline"; badge.className = "badge neutral offline" } } }
 
 const loaders = { dashboard: async () => { await Promise.all([loadLatest(), loadHistory(), loadHealth(), loadEvents()]); }, ai: loadAIStatus, linux: loadHealth, oracle: loadOracle, oscap: loadOSCAP, security: async () => { if (!cache.linux) await loadHealth(); renderSecurity() }, compliance: loadCompliance, health: async () => { await Promise.all([loadHealth(), loadOracle()]); await loadSystemHealth() }, metrics: async () => { if (!cache.history) await loadHistory(); if (cache.history) buildMetricsChart(cache.history) }, events: loadEvents, tools: loadTools, processes: loadProcesses, network: loadNetwork, services: loadServices, reports: loadReports };
 async function loadTab(tab) { try { if (loaders[tab]) await loaders[tab]() } catch (e) { console.debug(`tab ${tab}`, e) } }
 
 on("refresh-linux", "click", loadHealth); on("refresh-oracle", "click", loadOracle); on("refresh-all", "click", async () => { await Promise.all([loadLatest(), loadHealth(), loadOracle(), loadSystemHealth()]); toast("Health refreshed") }); on("refresh-events", "click", loadEvents); on("refresh-processes", "click", loadProcesses); on("refresh-network", "click", loadNetwork); on("refresh-services", "click", loadServices);
+
+function applyTheme(night) {
+  document.body.classList.toggle("night", night);
+  const button = $("theme-btn");
+  if (!button) return;
+  button.textContent = night ? "☼" : "☾";
+  button.title = night ? "Switch to light mode" : "Switch to dark mode";
+  button.setAttribute("aria-label", button.title);
+}
+
+const savedTheme = localStorage.getItem("os-agent-theme");
+applyTheme(savedTheme ? savedTheme === "night" : document.body.classList.contains("night"));
+on("theme-btn", "click", () => {
+  const night = !document.body.classList.contains("night");
+  applyTheme(night);
+  localStorage.setItem("os-agent-theme", night ? "night" : "light");
+});
 
 loadTab("dashboard");
 setInterval(loadLatest, 10000); setInterval(() => { if (document.querySelector("#tab-dashboard.active")) loadHistory() }, 30000); setInterval(() => { if (document.querySelector("#tab-dashboard.active")) loadHealth() }, 20000);

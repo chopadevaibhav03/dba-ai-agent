@@ -59,6 +59,9 @@ LINUX_KEYWORDS = {
     "kernel",
     "uptime",
     "users",
+    "health",
+    "status",
+    "system",
 }
 
 

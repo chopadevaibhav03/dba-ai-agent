@@ -39,6 +39,7 @@ Stage 1 safety:
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import Any
 
@@ -47,6 +48,8 @@ import requests
 import config
 from core.domain_router import detect_domain
 from core.tool_registry import execute_tool, list_tools
+from service_control import list_services
+from services.oracle_health_service import get_oracle_health
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +117,9 @@ IMPORTANT SAFETY RULES:
 11. Only use tools explicitly provided to you.
 12. Base operational answers on actual tool results.
 13. If a tool cannot answer the question, say so clearly.
+14. Never use bracketed placeholder text like "[Insert information]"
+    in your answer. If you don't have a real value, say you don't
+    have that data instead of leaving a placeholder.
 
 When a tool result shows a problem:
 
@@ -125,6 +131,14 @@ When a tool result shows a problem:
 You are an analysis and diagnostic assistant,
 not an autonomous executor.
 
+For the final answer after tool results are available, use exactly this shape:
+
+Status: <one word — Healthy, Warning, or Critical>
+Finding: <one sentence stating what the tool found, nothing else>
+Next step: <one sentence — either 'No action needed' or a single concrete recommendation. Never both recommend an action and tell the user not to take it.>
+
+Do not hedge or contradict the tool result.
+Do not add caveats about the tool's limitations unless the tool result itself was empty or an error.
 Keep answers concise and practical.
 """.strip()
 
@@ -263,6 +277,10 @@ def _call_ollama(
         "model": config.OLLAMA_MODEL,
         "messages": messages,
         "stream": False,
+        "keep_alive": getattr(config, "OLLAMA_KEEP_ALIVE", "30m"),
+        "options": {
+            "temperature": 0.2,
+        },
     }
 
     # For general questions there are no operational tools.
@@ -466,6 +484,171 @@ def _execute_registered_tool(
         }
 
 
+def _is_empty_result(result: Any) -> bool:
+    """
+    True if a tool result represents "no data". Used to bypass the
+    model entirely for empty results -- narrating "nothing found" is
+    exactly the case where a small local model is most prone to
+    inventing example data instead of reporting the empty result.
+    """
+    if result is None:
+        return True
+    if isinstance(result, list):
+        return len(result) == 0
+    if isinstance(result, dict):
+        if result.get("ok") is False:
+            return False  # an error isn't "empty" -- let the model explain it
+        for key in ("findings", "results", "rows", "items", "data", "sessions"):
+            if key in result and isinstance(result[key], list):
+                return len(result[key]) == 0
+        if not result:
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Conservative deterministic fast paths
+# ---------------------------------------------------------------------------
+
+def try_fast_path(
+    user_message: str,
+) -> dict[str, Any] | None:
+    """Answer a few unambiguous operational questions without Ollama."""
+
+    message = user_message.strip().lower()
+
+    service_match = re.fullmatch(
+        r"(?:is ([a-z0-9_.@-]+) running|([a-z0-9_.@-]+) status)",
+        message,
+    )
+
+    if service_match:
+        service = service_match.group(1) or service_match.group(2)
+        result = _execute_registered_tool(
+            "linux.failed_services",
+            {},
+        )
+        failed_services = result.get("services", []) if result.get("ok") else []
+        failed_units = {
+            str(item.get("unit", "")).removesuffix(".service")
+            for item in failed_services
+            if isinstance(item, dict)
+        }
+
+        if not result.get("ok"):
+            reply = f"I could not check service status: {result.get('error', 'unknown error')}"
+        elif service.removesuffix(".service") in failed_units:
+            reply = f"{service} is failed."
+        else:
+            reply = f"{service} is not in the failed services list."
+
+        return {
+            "ok": True,
+            "reply": reply,
+            "tool_calls": [{"name": "linux.failed_services", "arguments": {}, "result": result}],
+        }
+
+    if message in {"list services", "show services"}:
+        try:
+            services = list_services(active_only=False)
+            result = {"ok": True, "services": services}
+            names = [str(item.get("unit", item)) for item in services]
+            reply = (
+                f"Services: {', '.join(names)}"
+                if names
+                else "No services were returned."
+            )
+        except Exception as exc:
+            result = {"ok": False, "error": str(exc)}
+            reply = f"I could not list services: {exc}"
+
+        return {
+            "ok": True,
+            "reply": reply,
+            "tool_calls": [{"name": "service_control.list_services", "arguments": {}, "result": result}],
+        }
+
+    if message in {"cpu usage", "current cpu"}:
+        result = _execute_registered_tool("linux.cpu", {})
+        if result.get("ok"):
+            reply = (
+                f"CPU usage is {result.get('usage_percent', '--')}%. "
+                f"Load averages: {result.get('load_1m', '--')}, "
+                f"{result.get('load_5m', '--')}, "
+                f"{result.get('load_15m', '--')} (1m, 5m, 15m)."
+            )
+        else:
+            reply = f"I could not read CPU usage: {result.get('error', 'unknown error')}"
+
+        return {
+            "ok": True,
+            "reply": reply,
+            "tool_calls": [{"name": "linux.cpu", "arguments": {}, "result": result}],
+        }
+
+    return None
+
+
+def try_oracle_fast_path(
+    user_message: str,
+) -> dict[str, Any] | None:
+    """Summarize the complete Oracle health snapshot in one Ollama call."""
+
+    message = user_message.strip().lower()
+    if not re.fullmatch(
+        r"(?:is oracle healthy|oracle health|oracle status)[?.!]?$",
+        message,
+    ):
+        return None
+
+    total_start = time.perf_counter()
+    timing: dict[str, Any] = {
+        "routing_ms": 0.0,
+        "schema_build_ms": 0.0,
+        "ollama_calls": [],
+        "tool_execution": [],
+    }
+    health = get_oracle_health()
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Summarize the supplied Oracle health data in plain English. "
+                "State the overall status first, then mention the most important "
+                "findings. Do not call tools, invent values, or add markdown tables."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "Oracle health snapshot:\n"
+                + json.dumps(health, default=str)
+            ),
+        },
+    ]
+
+    data = _call_ollama(messages, "general", timing)
+    response = data.get("message") or {}
+    reply = (
+        response.get("content")
+        or "The AI did not return an Oracle health summary."
+    ).strip()
+    total_elapsed = (time.perf_counter() - total_start) * 1000
+    timing["total_ms"] = round(total_elapsed, 2)
+    timing["total_seconds"] = round(total_elapsed / 1000, 3)
+
+    return {
+        "ok": True,
+        "reply": reply,
+        "domain": "oracle_fast_path",
+        "tool_calls": [],
+        "iterations": 1,
+        "model": config.OLLAMA_MODEL,
+        "health": health,
+        "timing": timing,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main AI function
 # ---------------------------------------------------------------------------
@@ -517,6 +700,15 @@ def run_ai(
             "tool_calls": [],
         }
 
+    oracle_fast_path = try_oracle_fast_path(user_message)
+    if oracle_fast_path is not None:
+        return oracle_fast_path
+
+    fast_path = try_fast_path(user_message)
+    if fast_path is not None:
+        fast_path["domain"] = "fast_path"
+        return fast_path
+
     # ---------------------------------------------------------------
     # Determine domain BEFORE calling Ollama.
     # ---------------------------------------------------------------
@@ -541,10 +733,23 @@ def run_ai(
         "tool_execution": [],
     }
 
+    system_content = SYSTEM_PROMPT
+
+    if domain == "general":
+        system_content += (
+            "\n\nNOTE: No diagnostic tools are available for this "
+            "request -- it did not match Linux, Oracle, or OSCAP. "
+            "If the user is asking about specific system, database, "
+            "or security data (status, usage, health, findings), you "
+            "do NOT have that information. Say so plainly and suggest "
+            "they ask about Linux, Oracle, or OSCAP specifically. Do "
+            "NOT provide any specific number, percentage, or status."
+        )
+
     messages: list[dict[str, Any]] = [
         {
             "role": "system",
-            "content": SYSTEM_PROMPT,
+            "content": system_content,
         },
         {
             "role": "user",
@@ -664,6 +869,43 @@ def run_ai(
                         ),
                     }
                 )
+
+            # If every tool called this turn came back empty, answer
+            # deterministically -- never let the model narrate "nothing
+            # found" into invented example data.
+            this_round = tool_history[-len(tool_calls):]
+            if tool_calls and all(
+                _is_empty_result(history["result"])
+                for history in this_round
+            ):
+                names = ", ".join(
+                    history["name"]
+                    for history in this_round
+                )
+                total_elapsed = (
+                    time.perf_counter() - total_start
+                ) * 1000
+                timing["total_ms"] = round(
+                    total_elapsed,
+                    2,
+                )
+                timing["total_seconds"] = round(
+                    total_elapsed / 1000,
+                    3,
+                )
+                return {
+                    "ok": True,
+                    "reply": (
+                        f"No results were returned by {names}. "
+                        "Nothing to report."
+                    ),
+                    "domain": domain,
+                    "tool_calls": tool_history,
+                    "iterations": iteration + 1,
+                    "model": config.OLLAMA_MODEL,
+                    "timing": timing,
+                    "empty_result_shortcircuit": True,
+                }
 
         # -----------------------------------------------------------
         # Tool iteration limit reached.
