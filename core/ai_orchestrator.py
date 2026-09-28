@@ -44,6 +44,7 @@ import time
 from typing import Any
 
 import requests
+from openai import OpenAI
 
 import config
 from core.domain_router import detect_domain
@@ -55,6 +56,9 @@ from services.oracle_health_service import get_oracle_health
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
+def _current_model_name() -> str:
+    return config.NVIDIA_MODEL if config.LLM_PROVIDER == "api" else config.OLLAMA_MODEL
+
 
 OLLAMA_CHAT_URL = config.OLLAMA_URL.replace(
     "/api/generate",
@@ -64,6 +68,18 @@ OLLAMA_CHAT_URL = config.OLLAMA_URL.replace(
 MAX_TOOL_ITERATIONS = 4
 
 OLLAMA_TIMEOUT_SECONDS = 300
+
+_nvidia_client = None
+
+
+def _get_nvidia_client() -> OpenAI:
+    global _nvidia_client
+    if _nvidia_client is None:
+        _nvidia_client = OpenAI(
+            base_url=config.NVIDIA_API_BASE,
+            api_key=config.NVIDIA_API_KEY,
+        )
+    return _nvidia_client
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +374,66 @@ def _call_ollama(
         raise
 
 
+def _call_api_model(messages: list, tools: list) -> dict:
+    """
+    Calls a hosted OpenAI-compatible model (e.g. NVIDIA Nemotron 3.5
+    Lightning) instead of local Ollama. Only active when
+    config.LLM_PROVIDER == "api". Non-streaming, normalized to the
+    same shape _call_ollama returns.
+    """
+    client = _get_nvidia_client()
+    completion = client.chat.completions.create(
+        model=config.NVIDIA_MODEL,
+        messages=messages,
+        tools=tools if tools else None,
+        tool_choice="auto" if tools else None,
+        temperature=0.2,
+        max_tokens=2048,
+        stream=False,
+    )
+    choice = completion.choices[0].message
+    return {
+        "message": {
+            "role": "assistant",
+            "content": choice.content or "",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    }
+                }
+                for tc in (choice.tool_calls or [])
+            ],
+        }
+    }
+
+
+def _call_model(
+    messages: list[dict[str, Any]],
+    domain: str,
+    timing: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    tools = build_tool_schemas(domain)
+
+    if config.LLM_PROVIDER == "api":
+        call_start = time.perf_counter()
+        data = _call_api_model(messages, tools)
+        if timing is not None:
+            elapsed = (time.perf_counter() - call_start) * 1000
+            timing.setdefault("api_calls", []).append(
+                {
+                    "duration_ms": round(elapsed, 2),
+                    "duration_seconds": round(elapsed / 1000, 3),
+                    "tool_schema_count": len(tools),
+                    "domain": domain,
+                }
+            )
+        return data
+
+    return _call_ollama(messages, domain, timing)
+
+
 # ---------------------------------------------------------------------------
 # Tool argument handling
 # ---------------------------------------------------------------------------
@@ -627,7 +703,7 @@ def try_oracle_fast_path(
         },
     ]
 
-    data = _call_ollama(messages, "general", timing)
+    data = _call_model(messages, "general", timing)
     response = data.get("message") or {}
     reply = (
         response.get("content")
@@ -765,7 +841,7 @@ def run_ai(
             MAX_TOOL_ITERATIONS
         ):
 
-            data = _call_ollama(
+            data = _call_model(
                 messages,
                 domain,
                 timing,
@@ -813,7 +889,7 @@ def run_ai(
                     "domain": domain,
                     "tool_calls": tool_history,
                     "iterations": iteration + 1,
-                    "model": config.OLLAMA_MODEL,
+                    "model": _current_model_name(),
                     "timing": timing,
                 }
 
@@ -902,7 +978,7 @@ def run_ai(
                     "domain": domain,
                     "tool_calls": tool_history,
                     "iterations": iteration + 1,
-                    "model": config.OLLAMA_MODEL,
+                    "model": _current_model_name(),
                     "timing": timing,
                     "empty_result_shortcircuit": True,
                 }
@@ -935,7 +1011,7 @@ def run_ai(
             "domain": domain,
             "tool_calls": tool_history,
             "iterations": MAX_TOOL_ITERATIONS,
-            "model": config.OLLAMA_MODEL,
+            "model": _current_model_name(),
             "timing": timing,
         }
 
@@ -967,7 +1043,7 @@ def run_ai(
             "error": str(exc),
             "domain": domain,
             "tool_calls": tool_history,
-            "model": config.OLLAMA_MODEL,
+            "model": _current_model_name(),
             "timing": timing,
         }
 
@@ -994,7 +1070,7 @@ def run_ai(
             "error": str(exc),
             "domain": domain,
             "tool_calls": tool_history,
-            "model": config.OLLAMA_MODEL,
+            "model": _current_model_name(),
             "timing": timing,
         }
 

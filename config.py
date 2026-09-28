@@ -17,6 +17,7 @@ DISK_MOUNTS = ["/"]              # add more mount points if needed, e.g. ["/", "
 # --- Ollama ---
 OLLAMA_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama3.2:1b"
+LLM_PROVIDER = "ollama" 
 
 # --- Thresholds (percent) that trigger an "analyze now" worthy condition ---
 THRESHOLDS = {
